@@ -14,9 +14,6 @@ arso_neon = discord.Color.from_rgb(0, 176, 255)
 embed_color = arso_color
 
 
-# 778918486616309782
-
-
 class ARSOClient(discord.Client):
     config = None
     config_file = None
