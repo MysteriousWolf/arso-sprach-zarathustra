@@ -1,4 +1,5 @@
 import tempfile
+import time
 from datetime import datetime
 
 import discord
@@ -89,7 +90,7 @@ class ARSOClient(discord.Client):
                          url="https://meteo.arso.gov.si/met/sl/weather/observ/radar/")
         embed.set_thumbnail(url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg")
         embed.set_image(
-            url=f"https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif?time={datetime.now()}")
+            url=f"https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif?time={time.time()}")
 
         return {
             "embed": embed
