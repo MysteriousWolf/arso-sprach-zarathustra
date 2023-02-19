@@ -15,10 +15,16 @@ class ColorUtils:
     dusk_c = Color("#10112B")
 
     def __init__(self):
+        self.s = None
+        self.city = None
+        self.refresh_sun_data()
+
+    def refresh_sun_data(self):
         self.city = LocationInfo("Ljubljana", "Slovenia", "Europe/Ljubljana", 46.0658, 14.5172)
         self.s = sun(self.city.observer, date=datetime.date.today())
 
     def get_current_color(self):
+        self.refresh_sun_data()
         time = datetime.datetime.now(self.city.tzinfo)
         if time < self.s["dawn"]:
             color = blend_color(self.dusk_c, self.dawn_c, self.s["dusk"], self.s["dawn"], time)
