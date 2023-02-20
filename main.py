@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import time
 from datetime import datetime
@@ -39,6 +40,7 @@ class ARSOClient(discord.Client):
             self.config = {"token": "[insert your Discord bot token here]", "channels": [], "polna_napoved_ob": "18",
                            "povzetek_napovedi_ob": "6"}
             self.store_config()
+            sys.exit("Please fill out the config file.")
 
     async def setup_hook(self):
         """print(self.guilds)
