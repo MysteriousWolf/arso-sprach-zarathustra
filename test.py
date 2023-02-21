@@ -1,30 +1,35 @@
-import asyncio
-import datetime
-import zoneinfo
+import datetime, sys
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from colour import Color
 
-from utils.ColorUtils import ColorUtils, blend_color
+from PIL import Image, ImageDraw
+
+from utils.ColorUtils import ColorUtils, time_blend_color
 
 
 async def test():
     print("hi")
 
 
+def rgb_to_int(color):
+    red = int(color[0] * 255)
+    green = int(color[1] * 255)
+    blue = int(color[2] * 255)
+    return red, green, blue, 255
+
+
 if __name__ == '__main__':
     cu = ColorUtils()
 
-    c0 = Color(rgb=(1, 1, 1))
-    c1 = Color(rgb=(1, 0, 0))
-    start = datetime.datetime.fromtimestamp(1000)
-    stop = datetime.datetime.fromtimestamp(2000)
-    time = datetime.datetime.fromtimestamp(1900)
+    curtime = datetime.datetime.now(cu.city.tzinfo).replace(hour=0, minute=0, second=0, microsecond=0)
+    with Image.open("dev/gradient.png") as im:
+        draw = ImageDraw.Draw(im)
 
-    print(blend_color(c0, c1, start, stop, time))
+        for i in range(0, im.size[0]):
+            hour = int(i / im.size[0] * 24)
+            minute = int((i / im.size[0] * 24) % 1 * 60)
+            curtime = curtime.replace(hour=hour, minute=minute, second=0,
+                                      microsecond=0)
+            draw.line((i, im.size[1], i, 0), fill=rgb_to_int(cu.get_color_for_time(curtime).get_rgb()))
 
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(test, 'interval', seconds=1)
-    scheduler.start()
-
-    asyncio.get_event_loop().run_forever()
+        im.show()
