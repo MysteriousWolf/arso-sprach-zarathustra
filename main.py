@@ -147,7 +147,7 @@ if __name__ == '__main__':
         print(f'Synced new commands')
 
         # test pošiljanja v kanal
-        scheduler.add_job(client.send_weather, 'interval', seconds=5)
+        # scheduler.add_job(client.send_weather, 'interval', seconds=5)
 
         # polna napoved
         scheduler.add_job(client.send_weather, 'cron', hour=client.config["polna_napoved_ob"])
@@ -198,6 +198,11 @@ if __name__ == '__main__':
     async def nednevno_vreme(interaction: discord.Interaction):
         """Odstrani trenutni kanal za dnevna sporočila"""
         await interaction.response.send_message(client.remove_channel(interaction.channel_id))
+
+    @client.tree.command()
+    async def version(interaction: discord.Interaction):
+        """Odstrani trenutni kanal za dnevna sporočila"""
+        await interaction.response.send_message("Last updated on 21. 2. 2023")
 
 
     client.run(client.config["token"])
