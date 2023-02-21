@@ -165,19 +165,22 @@ if __name__ == '__main__':
     @client.tree.command()
     async def vreme(interaction: discord.Interaction):
         """Izpiše napoved za današnji dan"""
-        await interaction.response.send_message(**client.generate_forecast_panel())
+        await interaction.response.defer()
+        await interaction.followup.send(**client.generate_forecast_panel())
 
 
     @client.tree.command()
     async def obeti(interaction: discord.Interaction):
         """Izpiše obeti"""
-        await interaction.response.send_message(**client.generate_obeti_panel())
+        await interaction.response.defer()
+        await interaction.followup.send(**client.generate_obeti_panel())
 
 
     @client.tree.command()
     async def padavine(interaction: discord.Interaction):
         """Izpiše padavine or something"""
-        await interaction.response.send_message(**client.generate_precipitation_panel())
+        await interaction.response.defer()
+        await interaction.followup.send(**client.generate_precipitation_panel())
 
 
     @client.tree.command()

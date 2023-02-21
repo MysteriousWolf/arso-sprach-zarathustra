@@ -2,6 +2,8 @@ from datetime import datetime
 
 import requests
 
+from requests.adapters import HTTPAdapter, Retry
+
 from parsers.ObetiParser import ObetiParser
 from parsers.TableGenerator import TableGenerator
 
@@ -15,8 +17,12 @@ class ARSO:
         self.op = ObetiParser()
         self.tg = TableGenerator(tempdir, url, self.css)
 
+        self.s = requests.Session()
+        retries = Retry(total=5, backoff_factor=1, status_forcelist=[404, 502, 503, 504])
+        self.s.mount('https://', HTTPAdapter(max_retries=retries))
+
     def parse_txt_url(self, url):
-        x = requests.get(url)
+        x = self.s.get(url)
         reencoded = bytes(x.text, x.encoding).decode("utf-8", 'ignore')
         if x.status_code == 200:
             self.op.feed(reencoded)
