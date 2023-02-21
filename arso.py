@@ -21,12 +21,12 @@ class ARSO:
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[404, 502, 503, 504])
         self.s.mount('https://', HTTPAdapter(max_retries=retries))
 
-    def parse_txt_url(self, url):
+    def parse_txt_url(self, url, paragraphs=-1):
         x = self.s.get(url)
         reencoded = bytes(x.text, x.encoding).decode("utf-8", 'ignore')
         if x.status_code == 200:
             self.op.feed(reencoded)
-            return self.op.get_obeti()
+            return self.op.parse_arso_txt(paragraphs)
         return {
             "header": "Napaka!",
             "title": "Napaka!",
@@ -35,8 +35,8 @@ class ARSO:
             "timestamp": datetime.now()
         }
 
-    def get_forecast(self):
-        return self.parse_txt_url(f"{self.url}/fcast_SLOVENIA_d1-d2_text.html")
+    def get_forecast(self, paragraphs=-1):
+        return self.parse_txt_url(f"{self.url}/fcast_SLOVENIA_d1-d2_text.html", paragraphs)
 
     def get_obeti(self):
         return self.parse_txt_url(f"{self.url}/fcast_SLOVENIA_d3-d5_text.html")

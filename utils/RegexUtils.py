@@ -12,5 +12,8 @@ def strip_html(txt):
     return stripped.strip()
 
 
-def array_to_lines(arr):
-    return "\n".join(arr)
+def array_to_lines(arr, paragraphs=-1):
+    if paragraphs < 0:
+        return "\n".join(arr)
+    else:
+        return "\n".join(arr[0:paragraphs])

@@ -49,8 +49,8 @@ class ARSOClient(discord.Client):
             await self.tree.sync(guild=server)"""
         pass
 
-    def generate_forecast_panel(self):
-        fc = self.arso.get_forecast()
+    def generate_forecast_panel(self, paragraphs=-1):
+        fc = self.arso.get_forecast(paragraphs)
 
         tble = self.arso.get_morn_even_table()
         file = discord.File(tble, filename="morn_tabela.png")
@@ -98,12 +98,17 @@ class ARSOClient(discord.Client):
             "embed": embed
         }
 
-    async def send_recap(self):
-        print("Sending the daily recap!")
-        self.generate_forecast_panel()
+    async def send_weather(self):
+        print("Sending the daily weather!")
         for ch in self.config["channels"]:
             chnl = self.get_channel(ch)
-            await chnl.send(**client.generate_forecast_panel())
+            await chnl.send(**self.generate_forecast_panel())
+
+    async def send_recap(self):
+        print("Sending the daily recap!")
+        for ch in self.config["channels"]:
+            chnl = self.get_channel(ch)
+            await chnl.send(**self.generate_forecast_panel(paragraphs=1))
 
     def store_config(self):
         with open(self.config_file, "w+") as stream:
@@ -142,10 +147,10 @@ if __name__ == '__main__':
         print(f'Synced new commands')
 
         # test pošiljanja v kanal
-        # scheduler.add_job(client.send_recap, 'interval', seconds=5)
+        scheduler.add_job(client.send_weather, 'interval', seconds=5)
 
         # polna napoved
-        scheduler.add_job(client.send_recap, 'cron', hour=client.config["polna_napoved_ob"])
+        scheduler.add_job(client.send_weather, 'cron', hour=client.config["polna_napoved_ob"])
 
         # kratka napoved - zaenkrat isto
         scheduler.add_job(client.send_recap, 'cron', hour=client.config["povzetek_napovedi_ob"])
