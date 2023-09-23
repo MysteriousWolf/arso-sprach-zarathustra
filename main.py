@@ -86,15 +86,19 @@ class ARSOClient(discord.Client):
         }
 
     def generate_precipitation_panel(self):
+        gif = self.arso.get_percipitation_gif()
+        filename = datetime.now().strftime("%Y%m%d-%H%M-si0-rm-anim.gif")
+        file = discord.File(gif, filename=filename)
+    
         embed = discord.Embed(color=color_to_discord(self.cu.get_current_color()), title="Radarska slika padavin")
         embed.set_footer(text='ARSO').timestamp = datetime.now()
         embed.set_author(name="Vir: Agencija Republike Slovenije za okolje",
                          url="https://meteo.arso.gov.si/met/sl/weather/observ/radar/")
         embed.set_thumbnail(url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg")
-        embed.set_image(
-            url=f"https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif?time={time.time()}")
+        embed.set_image(url=f"attachment://{filename}")
 
         return {
+            "file": file,
             "embed": embed
         }
 
