@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import requests
+import io
 
 from requests.adapters import HTTPAdapter, Retry
 
@@ -46,3 +47,17 @@ class ARSO:
 
     def get_morn_even_table(self):
         return self.tg.generate_shorthand("morn_tabela.png")
+        
+    def get_percipitation_gif(self):
+        res = self.s.get("https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif")
+        if res.status_code == 200:
+            image_data = io.BytesIO(res.content)
+            return image_data
+        return {
+            "header": "Napaka!",
+            "title": "Napaka!",
+            "body": f"Prišlo je do napake {res.status_code}",
+            "author": "you dummy",
+            "timestamp": datetime.now()
+        }
+        return 
