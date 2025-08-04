@@ -13,7 +13,7 @@ class TableGenerator:
         self.folder = folder
         self.url = url
         self.css = css
-        self.hti = Html2Image(output_path=folder)
+        self.hti = Html2Image(output_path=folder, browser_executable="chromium-headless-shell")
 
     def generate_napoved(self, file):
         return self.generate_table(file, f"{self.url}/fcast_SLOVENIA_MIDDLE_latest.html", self.css,
