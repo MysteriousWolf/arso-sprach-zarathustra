@@ -17,10 +17,10 @@ class ColorUtils:
     midnight_c = Color("#10112B")
 
     def __init__(self):
-        self.city = None
-        self.s = None
-        self.day_start = None
-        self.midnight = None
+        self.city: LocationInfo
+        self.s: dict[str, datetime.datetime]
+        self.day_start: datetime.datetime
+        self.midnight: datetime.datetime
         self.refresh_sun_data()
 
     def refresh_sun_data(self):

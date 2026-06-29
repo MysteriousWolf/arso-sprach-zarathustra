@@ -6,7 +6,7 @@ from datetime import datetime
 import discord
 import yaml
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from discord import client, app_commands
+from discord import app_commands
 
 from arso import ARSO
 from utils.ColorUtils import ColorUtils, color_to_discord
@@ -17,8 +17,9 @@ embed_color = arso_color
 
 
 class ARSOClient(discord.Client):
-    config = None
-    config_file = None
+    config: dict
+    config_file: str
+    tree: app_commands.CommandTree
 
     def __init__(self, *, intents: discord.Intents, config_file="config.yaml"):
         super().__init__(intents=intents)
@@ -32,9 +33,12 @@ class ARSOClient(discord.Client):
             print(f"Reading the config file. ({config_file})")
             with open(config_file, "r+") as stream:
                 try:
-                    self.config = yaml.safe_load(stream)
+                    loaded = yaml.safe_load(stream)
+                    if not isinstance(loaded, dict):
+                        sys.exit("Config file is empty or invalid.")
+                    self.config = loaded
                 except yaml.YAMLError as exc:
-                    print(f"An error occurred when trying to parse the config file: {exc}")
+                    sys.exit(f"An error occurred when trying to parse the config file: {exc}")
             self.dedup_channels()
         except FileNotFoundError:
             print(f"Config not found, creating a config template. Please fill in the missing values.")
@@ -107,13 +111,15 @@ class ARSOClient(discord.Client):
         print("Sending the daily weather!")
         for ch in self.config["channels"]:
             chnl = self.get_channel(ch)
-            await chnl.send(**self.generate_forecast_panel())
+            if isinstance(chnl, discord.abc.Messageable):
+                await chnl.send(**self.generate_forecast_panel())
 
     async def send_recap(self):
         print("Sending the daily recap!")
         for ch in self.config["channels"]:
             chnl = self.get_channel(ch)
-            await chnl.send(**self.generate_forecast_panel(paragraphs=1))
+            if isinstance(chnl, discord.abc.Messageable):
+                await chnl.send(**self.generate_forecast_panel(paragraphs=1))
 
     def dedup_channels(self):
         channels = self.config.get("channels") or []
@@ -178,7 +184,7 @@ if __name__ == '__main__':
 
     @client.event
     async def on_message(message):
-        if message.author.id == client.user.id:
+        if client.user and message.author.id == client.user.id:
             return
         # await client.send_recap()
         # print(f'Message from {message.author}: {message.content}')

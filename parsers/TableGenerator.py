@@ -7,7 +7,6 @@ from html2image import Html2Image
 
 class TableGenerator:
     tablematcher = re.compile("(<table(.|\n\r|\n|\r|\r\n)+table>)", re.MULTILINE)
-    hti = None
 
     def __init__(self, folder, url, css):
         self.folder = folder
@@ -27,12 +26,14 @@ class TableGenerator:
         if crop is None:
             crop = []
         x = requests.get(css_url)
-        csstxt = bytes(x.text, x.encoding).decode("utf-8", 'ignore')
+        csstxt = bytes(x.text, x.encoding or "utf-8").decode("utf-8", 'ignore')
 
         x = requests.get(html_url)
-        htmltxt = bytes(x.text, x.encoding).decode("utf-8", 'ignore').replace('src="/',
+        htmltxt = bytes(x.text, x.encoding or "utf-8").decode("utf-8", 'ignore').replace('src="/',
                                                                               'src="https://meteo.arso.gov.si/')
-        htmltable = re.search(self.tablematcher, htmltxt).group(1)
+        match = re.search(self.tablematcher, htmltxt)
+        assert match is not None, f"No table found in {html_url}"
+        htmltable = match.group(1)
 
         return self.hti.screenshot(html_str=htmltable, css_str=csstxt, save_as=file, size=crop)[0]
 
