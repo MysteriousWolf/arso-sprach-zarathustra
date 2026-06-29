@@ -1,14 +1,45 @@
+import argparse
+import functools
+import logging
 import sys
 import tempfile
+import time
 from datetime import datetime
 
 import discord
 import yaml
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord import app_commands
+from rich.markup import escape
 
 from arso import ARSO
 from utils.ColorUtils import ColorUtils, color_to_discord
+from utils.log import fmt_cmd, fmt_entity, fmt_id, fmt_timing, get_logger, setup_logging
+
+logger = get_logger("bot")
+
+
+def log_command(func):
+    @functools.wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        user = fmt_entity(interaction.user.name, interaction.user.id)
+        guild = (
+            fmt_entity(interaction.guild.name, interaction.guild.id) if interaction.guild else "DM"
+        )
+        logger.info(f"{fmt_cmd(func.__name__)} by {user} @ {guild}")
+        t0 = time.monotonic()
+        try:
+            result = await func(interaction, *args, **kwargs)
+            elapsed = f"{time.monotonic() - t0:.2f}"
+            logger.info(f"{fmt_cmd(func.__name__)} ok {fmt_timing(elapsed)}")
+            return result
+        except Exception:
+            elapsed = f"{time.monotonic() - t0:.2f}"
+            logger.exception(f"{fmt_cmd(func.__name__)} failed {fmt_timing(elapsed)}")
+            raise
+
+    return wrapper
+
 
 arso_color = discord.Color.from_rgb(0, 130, 188)
 arso_neon = discord.Color.from_rgb(0, 176, 255)
@@ -31,7 +62,7 @@ class ARSOClient(discord.Client):
         self.cu = ColorUtils()
 
         try:
-            print(f"Reading the config file. ({config_file})")
+            logger.info(f"reading config {escape(config_file)}")
             with open(config_file, "r+") as stream:
                 try:
                     loaded = yaml.safe_load(stream)
@@ -42,9 +73,7 @@ class ARSOClient(discord.Client):
                     sys.exit(f"An error occurred when trying to parse the config file: {exc}")
             self.dedup_channels()
         except FileNotFoundError:
-            print(
-                "Config not found, creating a config template. Please fill in the missing values."
-            )
+            logger.warning("config not found, creating template")
             self.config = {
                 "token": "[insert your Discord bot token here]",
                 "channels": [],
@@ -117,25 +146,45 @@ class ARSOClient(discord.Client):
 
         return {"file": file, "embed": embed}
 
-    async def send_weather(self):
-        print("Sending the daily weather!")
-        for ch in self.config["channels"]:
+    async def _broadcast(self, job: str, panel_fn):
+        channels = self.config["channels"]
+        cron = f"[bot.cron]cron.{escape(job)}[/bot.cron]"
+        logger.info(f"{cron} starting, [bot.count]{len(channels)}[/bot.count] channel(s)")
+        t0 = time.monotonic()
+        ok = fail = 0
+        for ch in channels:
             chnl = self.get_channel(ch)
-            if isinstance(chnl, discord.abc.Messageable):
-                await chnl.send(**self.generate_forecast_panel())
+            if not isinstance(chnl, discord.abc.Messageable):
+                logger.warning(f"{cron} channel {fmt_id(ch)} not found or not messageable")
+                fail += 1
+                continue
+            try:
+                await chnl.send(**panel_fn())
+                ok += 1
+            except Exception:
+                logger.exception(f"{cron} channel {fmt_id(ch)} send failed")
+                fail += 1
+        elapsed = f"{time.monotonic() - t0:.2f}"
+        if fail:
+            logger.warning(
+                f"{cron} done {fmt_timing(elapsed)}, ok={ok} [bot.fail]fail={fail}[/bot.fail]"
+            )
+        else:
+            logger.info(f"{cron} done {fmt_timing(elapsed)}, [bot.ok]ok={ok}[/bot.ok]")
+
+    async def send_weather(self):
+        await self._broadcast("send_weather", self.generate_forecast_panel)
 
     async def send_recap(self):
-        print("Sending the daily recap!")
-        for ch in self.config["channels"]:
-            chnl = self.get_channel(ch)
-            if isinstance(chnl, discord.abc.Messageable):
-                await chnl.send(**self.generate_forecast_panel(paragraphs=1))
+        await self._broadcast("send_recap", lambda: self.generate_forecast_panel(paragraphs=1))
 
     def dedup_channels(self):
         channels = self.config.get("channels") or []
         unique = set(channels)
         if len(unique) < len(channels):
-            print(f"Removed {len(channels) - len(unique)} duplicate channel(s) from config.")
+            logger.info(
+                f"removed [bot.count]{len(channels) - len(unique)}[/bot.count] duplicate channel(s) from config"
+            )
             self.config["channels"] = list(unique)
             self.store_config()
 
@@ -144,24 +193,37 @@ class ARSOClient(discord.Client):
             try:
                 yaml.safe_dump(self.config, stream)
             except yaml.YAMLError as exc:
-                print(f"An error occurred when trying to create a fresh config file: {exc}")
+                logger.error(f"failed to write config: {exc}")
 
     def add_channel(self, channel_id):
         if channel_id in self.config["channels"]:
+            logger.info(f"channel {fmt_id(channel_id)} already subscribed")
             return "Za ta kanal je avtomatsko pošiljanje prognoze že omogočeno"
         self.config["channels"].append(channel_id)
         self.store_config()
+        logger.info(
+            f"channel {fmt_id(channel_id)} added - [bot.count]{len(self.config['channels'])}[/bot.count] total"
+        )
         return "Avtomatsko pošiljanje prognoze omogočeno v tem kanalu"
 
     def remove_channel(self, channel_id):
         if channel_id not in self.config["channels"]:
+            logger.info(f"channel {fmt_id(channel_id)} not subscribed")
             return "Ta kanal še nima omogočenega avtomatskega pošiljanja prognoze"
         self.config["channels"].remove(channel_id)
         self.store_config()
+        logger.info(
+            f"channel {fmt_id(channel_id)} removed - [bot.count]{len(self.config['channels'])}[/bot.count] remaining"
+        )
         return "Avtomatsko pošiljanje prognoze odstranjeno"
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+    setup_logging(logging.DEBUG if args.debug else logging.INFO)
+
     disc_intents = discord.Intents.default()
     disc_intents.message_content = True
     client = ARSOClient(intents=disc_intents)
@@ -170,13 +232,14 @@ if __name__ == "__main__":
 
     @client.event
     async def on_ready():
-        print(f"Logged on as {client.user}!")
+        assert client.user is not None
+        logger.info(f"logged on as {fmt_entity(client.user.name, client.user.discriminator)}")
 
         for server in client.guilds:
             client.tree.copy_global_to(guild=server)
             await client.tree.sync(guild=server)
 
-        print("Synced new commands")
+        logger.info("commands synced")
 
         # test pošiljanja v kanal
         # scheduler.add_job(client.send_weather, 'interval', seconds=5)
@@ -188,46 +251,50 @@ if __name__ == "__main__":
         scheduler.add_job(client.send_recap, "cron", hour=client.config["povzetek_napovedi_ob"])
         scheduler.start()
 
-        print("Started cron tasks")
+        logger.info("cron tasks started")
 
     @client.event
     async def on_message(message):
         if client.user and message.author.id == client.user.id:
             return
-        # await client.send_recap()
-        # print(f'Message from {message.author}: {message.content}')
 
     @client.tree.command()
+    @log_command
     async def vreme(interaction: discord.Interaction):
         """Izpiše napoved za današnji dan"""
         await interaction.response.defer()
         await interaction.followup.send(**client.generate_forecast_panel())
 
     @client.tree.command()
+    @log_command
     async def obeti(interaction: discord.Interaction):
         """Izpiše obeti"""
         await interaction.response.defer()
         await interaction.followup.send(**client.generate_obeti_panel())
 
     @client.tree.command()
+    @log_command
     async def padavine(interaction: discord.Interaction):
         """Izpiše padavine or something"""
         await interaction.response.defer()
         await interaction.followup.send(**client.generate_precipitation_panel())
 
     @client.tree.command()
+    @log_command
     async def dnevno_vreme(interaction: discord.Interaction):
         """Doda trenutni kanal za dnevna sporočila"""
         await interaction.response.send_message(client.add_channel(interaction.channel_id))
 
     @client.tree.command()
+    @log_command
     async def nednevno_vreme(interaction: discord.Interaction):
         """Odstrani trenutni kanal za dnevna sporočila"""
         await interaction.response.send_message(client.remove_channel(interaction.channel_id))
 
     @client.tree.command()
+    @log_command
     async def version(interaction: discord.Interaction):
         """Odstrani trenutni kanal za dnevna sporočila"""
         await interaction.response.send_message("Last updated on 21. 2. 2023")
 
-    client.run(client.config["token"])
+    client.run(client.config["token"], log_handler=None)

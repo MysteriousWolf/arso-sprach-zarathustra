@@ -12,6 +12,8 @@ dependencies = [
     "PyYAML>=6.0.3",
     "requests>=2.34.2",
     "colour>=0.1.5",
+    "rich>=15.0.0",
+    "platformdirs>=4.0.0",
 ]
 
 [tool.ruff]

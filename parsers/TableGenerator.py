@@ -3,6 +3,10 @@ import re
 import requests
 from html2image import Html2Image
 
+from utils.log import get_logger
+
+logger = get_logger("table_generator")
+
 
 class TableGenerator:
     tablematcher = re.compile("(<table(.|\n\r|\n|\r|\r\n)+table>)", re.MULTILINE)
@@ -29,10 +33,16 @@ class TableGenerator:
     def generate_table(self, file, html_url, css_url, crop=None):
         if crop is None:
             crop = []
+        logger.debug(f"GET {css_url}")
         x = requests.get(css_url)
+        if x.status_code != 200:
+            logger.warning(f"HTTP {x.status_code} fetching CSS {css_url}")
         csstxt = bytes(x.text, x.encoding or "utf-8").decode("utf-8", "ignore")
 
+        logger.debug(f"GET {html_url}")
         x = requests.get(html_url)
+        if x.status_code != 200:
+            logger.warning(f"HTTP {x.status_code} fetching HTML {html_url}")
         htmltxt = (
             bytes(x.text, x.encoding or "utf-8")
             .decode("utf-8", "ignore")
@@ -42,6 +52,7 @@ class TableGenerator:
         assert match is not None, f"No table found in {html_url}"
         htmltable = match.group(1)
 
-        return self.hti.screenshot(html_str=htmltable, css_str=csstxt, save_as=file, size=crop)[0]
-
-        # return os.path.join(self.folder, file)
+        logger.debug(f"rendering screenshot → {file}")
+        result = self.hti.screenshot(html_str=htmltable, css_str=csstxt, save_as=file, size=crop)[0]
+        logger.debug(f"screenshot saved: {result}")
+        return result
