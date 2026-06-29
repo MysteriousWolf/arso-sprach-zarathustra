@@ -118,3 +118,8 @@ fabric.properties
 
 # Remove all config files
 config.yaml
+
+# Python / UV
+__pycache__/
+*.pyc
+.venv/
