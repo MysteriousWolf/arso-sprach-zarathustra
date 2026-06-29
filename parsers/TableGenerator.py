@@ -1,4 +1,3 @@
-import os
 import re
 
 import requests
@@ -15,22 +14,30 @@ class TableGenerator:
         self.hti = Html2Image(output_path=folder, browser_executable="chromium-headless-shell")
 
     def generate_napoved(self, file):
-        return self.generate_table(file, f"{self.url}/fcast_SLOVENIA_MIDDLE_latest.html", self.css,
-                                   [(370 + 16, 202 + 16)])
+        return self.generate_table(
+            file, f"{self.url}/fcast_SLOVENIA_MIDDLE_latest.html", self.css, [(370 + 16, 202 + 16)]
+        )
 
     def generate_shorthand(self, file):
-        return self.generate_table(file, f"{self.url}/fcast_SI_OSREDNJESLOVENSKA_latest.html", self.css,
-                                   [(470 + 16, 176 + 16)])
+        return self.generate_table(
+            file,
+            f"{self.url}/fcast_SI_OSREDNJESLOVENSKA_latest.html",
+            self.css,
+            [(470 + 16, 176 + 16)],
+        )
 
     def generate_table(self, file, html_url, css_url, crop=None):
         if crop is None:
             crop = []
         x = requests.get(css_url)
-        csstxt = bytes(x.text, x.encoding or "utf-8").decode("utf-8", 'ignore')
+        csstxt = bytes(x.text, x.encoding or "utf-8").decode("utf-8", "ignore")
 
         x = requests.get(html_url)
-        htmltxt = bytes(x.text, x.encoding or "utf-8").decode("utf-8", 'ignore').replace('src="/',
-                                                                              'src="https://meteo.arso.gov.si/')
+        htmltxt = (
+            bytes(x.text, x.encoding or "utf-8")
+            .decode("utf-8", "ignore")
+            .replace('src="/', 'src="https://meteo.arso.gov.si/')
+        )
         match = re.search(self.tablematcher, htmltxt)
         assert match is not None, f"No table found in {html_url}"
         htmltable = match.group(1)

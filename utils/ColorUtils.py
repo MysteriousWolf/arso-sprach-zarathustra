@@ -4,7 +4,6 @@ import math
 import discord
 from astral import LocationInfo
 from astral.sun import sun
-
 from colour import Color
 
 
@@ -26,24 +25,39 @@ class ColorUtils:
     def refresh_sun_data(self):
         self.city = LocationInfo("Ljubljana", "Slovenia", "Europe/Ljubljana", 46.0658, 14.5172)
         self.s = sun(self.city.observer, date=datetime.date.today())
-        self.day_start = datetime.datetime.now(self.city.tzinfo).replace(hour=0, minute=0, second=0, microsecond=0)
-        self.midnight = datetime.datetime.now(self.city.tzinfo).replace(hour=23, minute=59, second=59,
-                                                                        microsecond=999999)
+        self.day_start = datetime.datetime.now(self.city.tzinfo).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        self.midnight = datetime.datetime.now(self.city.tzinfo).replace(
+            hour=23, minute=59, second=59, microsecond=999999
+        )
 
     def get_color_for_time(self, time):
         self.refresh_sun_data()
         if time < self.s["dawn"]:
-            color = time_blend_color(self.midnight_c, self.dawn_c, self.day_start, self.s["dawn"], time, iexp)
+            color = time_blend_color(
+                self.midnight_c, self.dawn_c, self.day_start, self.s["dawn"], time, iexp
+            )
         elif time < self.s["sunrise"]:
-            color = time_blend_color(self.dawn_c, self.sunrise_c, self.s["dawn"], self.s["sunrise"], time, linear)
+            color = time_blend_color(
+                self.dawn_c, self.sunrise_c, self.s["dawn"], self.s["sunrise"], time, linear
+            )
         elif time < self.s["noon"]:
-            color = time_blend_color(self.sunrise_c, self.noon_c, self.s["sunrise"], self.s["noon"], time, exp)
+            color = time_blend_color(
+                self.sunrise_c, self.noon_c, self.s["sunrise"], self.s["noon"], time, exp
+            )
         elif time < self.s["sunset"]:
-            color = time_blend_color(self.noon_c, self.sunset_c, self.s["noon"], self.s["sunset"], time, iexp)
+            color = time_blend_color(
+                self.noon_c, self.sunset_c, self.s["noon"], self.s["sunset"], time, iexp
+            )
         elif time < self.s["dusk"]:
-            color = time_blend_color(self.sunset_c, self.dusk_c, self.s["sunset"], self.s["dusk"], time, linear)
+            color = time_blend_color(
+                self.sunset_c, self.dusk_c, self.s["sunset"], self.s["dusk"], time, linear
+            )
         elif time < self.midnight:
-            color = time_blend_color(self.dusk_c, self.midnight_c, self.s["dusk"], self.midnight, time, exp)
+            color = time_blend_color(
+                self.dusk_c, self.midnight_c, self.s["dusk"], self.midnight, time, exp
+            )
         else:
             color = self.midnight_c
         return color
@@ -80,7 +94,7 @@ def linear(x):
 
 
 def iexp(x, tau=0.2):
-    return 1 - math.exp(- x / tau)
+    return 1 - math.exp(-x / tau)
 
 
 def exp(x, tau=0.2):
@@ -88,4 +102,6 @@ def exp(x, tau=0.2):
 
 
 def color_to_discord(c):
-    return discord.Color.from_rgb(round(c.get_red() * 255), round(c.get_green() * 255), round(c.get_blue() * 255))
+    return discord.Color.from_rgb(
+        round(c.get_red() * 255), round(c.get_green() * 255), round(c.get_blue() * 255)
+    )

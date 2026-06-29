@@ -1,6 +1,5 @@
 import sys
 import tempfile
-import time
 from datetime import datetime
 
 import discord
@@ -26,7 +25,9 @@ class ARSOClient(discord.Client):
         self.config_file = config_file
         self.temp_dir = tempfile.gettempdir()
         self.tree = app_commands.CommandTree(self)
-        self.arso = ARSO(self.temp_dir, 'https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl')
+        self.arso = ARSO(
+            self.temp_dir, "https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
+        )
         self.cu = ColorUtils()
 
         try:
@@ -41,9 +42,15 @@ class ARSOClient(discord.Client):
                     sys.exit(f"An error occurred when trying to parse the config file: {exc}")
             self.dedup_channels()
         except FileNotFoundError:
-            print(f"Config not found, creating a config template. Please fill in the missing values.")
-            self.config = {"token": "[insert your Discord bot token here]", "channels": [], "polna_napoved_ob": "18",
-                           "povzetek_napovedi_ob": "6"}
+            print(
+                "Config not found, creating a config template. Please fill in the missing values."
+            )
+            self.config = {
+                "token": "[insert your Discord bot token here]",
+                "channels": [],
+                "polna_napoved_ob": "18",
+                "povzetek_napovedi_ob": "6",
+            }
             self.store_config()
             sys.exit("Please fill out the config file.")
 
@@ -60,17 +67,18 @@ class ARSOClient(discord.Client):
         tble = self.arso.get_morn_even_table()
         file = discord.File(tble, filename="morn_tabela.png")
 
-        embed = discord.Embed(color=color_to_discord(self.cu.get_current_color()), title=fc["title"])
-        embed.add_field(name='Tekstovna napoved', value=fc["body"], inline=True)
-        embed.set_footer(text='ARSO').timestamp = fc["timestamp"]
+        embed = discord.Embed(
+            color=color_to_discord(self.cu.get_current_color()), title=fc["title"]
+        )
+        embed.add_field(name="Tekstovna napoved", value=fc["body"], inline=True)
+        embed.set_footer(text="ARSO").timestamp = fc["timestamp"]
         embed.set_author(name=fc["author"], url="https://meteo.arso.gov.si/")
-        embed.set_thumbnail(url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg")
+        embed.set_thumbnail(
+            url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
+        )
         embed.set_image(url="attachment://morn_tabela.png")
 
-        return {
-            "file": file,
-            "embed": embed
-        }
+        return {"file": file, "embed": embed}
 
     def generate_obeti_panel(self):
         fc = self.arso.get_obeti()
@@ -79,33 +87,35 @@ class ARSOClient(discord.Client):
         file = discord.File(tble, filename="napoved_tabela.png")
 
         embed = discord.Embed(color=embed_color, title=fc["title"])
-        embed.add_field(name='Tekstovna napoved', value=fc["body"], inline=True)
-        embed.set_footer(text='ARSO').timestamp = fc["timestamp"]
+        embed.add_field(name="Tekstovna napoved", value=fc["body"], inline=True)
+        embed.set_footer(text="ARSO").timestamp = fc["timestamp"]
         embed.set_author(name=fc["author"], url="https://meteo.arso.gov.si/")
-        embed.set_thumbnail(url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg")
+        embed.set_thumbnail(
+            url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
+        )
         embed.set_image(url="attachment://napoved_tabela.png")
 
-        return {
-            "file": file,
-            "embed": embed
-        }
+        return {"file": file, "embed": embed}
 
     def generate_precipitation_panel(self):
         gif = self.arso.get_percipitation_gif()
         filename = datetime.now().strftime("%Y%m%d-%H%M-si0-rm-anim.gif")
         file = discord.File(gif, filename=filename)
-    
-        embed = discord.Embed(color=color_to_discord(self.cu.get_current_color()), title="Radarska slika padavin")
-        embed.set_footer(text='ARSO').timestamp = datetime.now()
-        embed.set_author(name="Vir: Agencija Republike Slovenije za okolje",
-                         url="https://meteo.arso.gov.si/met/sl/weather/observ/radar/")
-        embed.set_thumbnail(url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg")
+
+        embed = discord.Embed(
+            color=color_to_discord(self.cu.get_current_color()), title="Radarska slika padavin"
+        )
+        embed.set_footer(text="ARSO").timestamp = datetime.now()
+        embed.set_author(
+            name="Vir: Agencija Republike Slovenije za okolje",
+            url="https://meteo.arso.gov.si/met/sl/weather/observ/radar/",
+        )
+        embed.set_thumbnail(
+            url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
+        )
         embed.set_image(url=f"attachment://{filename}")
 
-        return {
-            "file": file,
-            "embed": embed
-        }
+        return {"file": file, "embed": embed}
 
     async def send_weather(self):
         print("Sending the daily weather!")
@@ -151,36 +161,34 @@ class ARSOClient(discord.Client):
         return "Avtomatsko pošiljanje prognoze odstranjeno"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     disc_intents = discord.Intents.default()
     disc_intents.message_content = True
     client = ARSOClient(intents=disc_intents)
 
     scheduler = AsyncIOScheduler()
 
-
     @client.event
     async def on_ready():
-        print(f'Logged on as {client.user}!')
+        print(f"Logged on as {client.user}!")
 
         for server in client.guilds:
             client.tree.copy_global_to(guild=server)
             await client.tree.sync(guild=server)
 
-        print(f'Synced new commands')
+        print("Synced new commands")
 
         # test pošiljanja v kanal
         # scheduler.add_job(client.send_weather, 'interval', seconds=5)
 
         # polna napoved
-        scheduler.add_job(client.send_weather, 'cron', hour=client.config["polna_napoved_ob"])
+        scheduler.add_job(client.send_weather, "cron", hour=client.config["polna_napoved_ob"])
 
         # kratka napoved - zaenkrat isto
-        scheduler.add_job(client.send_recap, 'cron', hour=client.config["povzetek_napovedi_ob"])
+        scheduler.add_job(client.send_recap, "cron", hour=client.config["povzetek_napovedi_ob"])
         scheduler.start()
 
-        print(f'Started cron tasks')
-
+        print("Started cron tasks")
 
     @client.event
     async def on_message(message):
@@ -189,13 +197,11 @@ if __name__ == '__main__':
         # await client.send_recap()
         # print(f'Message from {message.author}: {message.content}')
 
-
     @client.tree.command()
     async def vreme(interaction: discord.Interaction):
         """Izpiše napoved za današnji dan"""
         await interaction.response.defer()
         await interaction.followup.send(**client.generate_forecast_panel())
-
 
     @client.tree.command()
     async def obeti(interaction: discord.Interaction):
@@ -203,19 +209,16 @@ if __name__ == '__main__':
         await interaction.response.defer()
         await interaction.followup.send(**client.generate_obeti_panel())
 
-
     @client.tree.command()
     async def padavine(interaction: discord.Interaction):
         """Izpiše padavine or something"""
         await interaction.response.defer()
         await interaction.followup.send(**client.generate_precipitation_panel())
 
-
     @client.tree.command()
     async def dnevno_vreme(interaction: discord.Interaction):
         """Doda trenutni kanal za dnevna sporočila"""
         await interaction.response.send_message(client.add_channel(interaction.channel_id))
-
 
     @client.tree.command()
     async def nednevno_vreme(interaction: discord.Interaction):
@@ -226,6 +229,5 @@ if __name__ == '__main__':
     async def version(interaction: discord.Interaction):
         """Odstrani trenutni kanal za dnevna sporočila"""
         await interaction.response.send_message("Last updated on 21. 2. 2023")
-
 
     client.run(client.config["token"])

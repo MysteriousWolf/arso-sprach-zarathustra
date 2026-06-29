@@ -21,7 +21,9 @@ class ObetiParser(HTMLParser):
 
     header = "not parsed"
     title = "not parsed"
-    body = ["not parsed", ]
+    body = [
+        "not parsed",
+    ]
     author = "not parsed"
     timestamp = datetime.strptime("2000-01-01 00:00", "%Y-%m-%d %H:%M")
 
@@ -83,5 +85,5 @@ class ObetiParser(HTMLParser):
             "title": ru.strip_html(self.title),
             "body": ru.strip_html(ru.array_to_lines(self.body, paragraphs)),
             "author": ru.strip_html(self.author),
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }

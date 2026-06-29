@@ -1,9 +1,9 @@
 import re
 
-newlinepat = re.compile('((\n\r|\n|\r|\r\n)(\n\r|\n|\r|\r\n))+')
+newlinepat = re.compile("((\n\r|\n|\r|\r\n)(\n\r|\n|\r|\r\n))+")
 
-htmlpat = re.compile('<.*?>')
-htmlpar = '<p>(.*)</p>'
+htmlpat = re.compile("<.*?>")
+htmlpar = "<p>(.*)</p>"
 
 
 def strip_html(txt):

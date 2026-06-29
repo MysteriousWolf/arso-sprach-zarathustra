@@ -1,8 +1,7 @@
+import io
 from datetime import datetime
 
 import requests
-import io
-
 from requests.adapters import HTTPAdapter, Retry
 
 from parsers.ObetiParser import ObetiParser
@@ -12,7 +11,9 @@ from parsers.TableGenerator import TableGenerator
 class ARSO:
     css = "https://meteo.arso.gov.si/uploads/meteo/style/css/webmet.css"
 
-    def __init__(self, tempdir, url='https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl'):
+    def __init__(
+        self, tempdir, url="https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
+    ):
         self.tempdir = tempdir
         self.url = url
         self.op = ObetiParser()
@@ -20,11 +21,11 @@ class ARSO:
 
         self.s = requests.Session()
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[404, 502, 503, 504])
-        self.s.mount('https://', HTTPAdapter(max_retries=retries))
+        self.s.mount("https://", HTTPAdapter(max_retries=retries))
 
     def parse_txt_url(self, url, paragraphs=-1):
         x = self.s.get(url)
-        reencoded = bytes(x.text, x.encoding or "utf-8").decode("utf-8", 'ignore')
+        reencoded = bytes(x.text, x.encoding or "utf-8").decode("utf-8", "ignore")
         if x.status_code == 200:
             self.op.feed(reencoded)
             return self.op.parse_arso_txt(paragraphs)
@@ -33,7 +34,7 @@ class ARSO:
             "title": "Napaka!",
             "body": f"Prišlo je do napake {x.status_code}",
             "author": "you dummy",
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
     def get_forecast(self, paragraphs=-1):
@@ -47,9 +48,11 @@ class ARSO:
 
     def get_morn_even_table(self):
         return self.tg.generate_shorthand("morn_tabela.png")
-        
+
     def get_percipitation_gif(self) -> io.BytesIO:
-        res = self.s.get("https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif")
+        res = self.s.get(
+            "https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif"
+        )
         if res.status_code != 200:
             raise RuntimeError(f"Prišlo je do napake {res.status_code}")
         return io.BytesIO(res.content)
