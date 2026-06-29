@@ -35,6 +35,7 @@ class ARSOClient(discord.Client):
                     self.config = yaml.safe_load(stream)
                 except yaml.YAMLError as exc:
                     print(f"An error occurred when trying to parse the config file: {exc}")
+            self.dedup_channels()
         except FileNotFoundError:
             print(f"Config not found, creating a config template. Please fill in the missing values.")
             self.config = {"token": "[insert your Discord bot token here]", "channels": [], "polna_napoved_ob": "18",
@@ -114,6 +115,14 @@ class ARSOClient(discord.Client):
             chnl = self.get_channel(ch)
             await chnl.send(**self.generate_forecast_panel(paragraphs=1))
 
+    def dedup_channels(self):
+        channels = self.config.get("channels") or []
+        unique = set(channels)
+        if len(unique) < len(channels):
+            print(f"Removed {len(channels) - len(unique)} duplicate channel(s) from config.")
+            self.config["channels"] = list(unique)
+            self.store_config()
+
     def store_config(self):
         with open(self.config_file, "w+") as stream:
             try:
@@ -122,14 +131,18 @@ class ARSOClient(discord.Client):
                 print(f"An error occurred when trying to create a fresh config file: {exc}")
 
     def add_channel(self, channel_id):
+        if channel_id in self.config["channels"]:
+            return "Za ta kanal je avtomatsko pošiljanje prognoze že omogočeno"
         self.config["channels"].append(channel_id)
         self.store_config()
-        return "Avtomatsko pošiljanje posodobitev omogočeno v tem kanalu."
+        return "Avtomatsko pošiljanje prognoze omogočeno v tem kanalu"
 
     def remove_channel(self, channel_id):
+        if channel_id not in self.config["channels"]:
+            return "Ta kanal še nima omogočenega avtomatskega pošiljanja prognoze"
         self.config["channels"].remove(channel_id)
         self.store_config()
-        return "Avtomatsko pošiljanje posodobitev odstranjeno."
+        return "Avtomatsko pošiljanje prognoze odstranjeno"
 
 
 if __name__ == '__main__':
