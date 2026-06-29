@@ -1,6 +1,6 @@
 [project]
 name = "arso-sprach-zarathustra"
-version = "0.1.0"
+version = "26.1"
 description = "Unofficial ARSO Discord weather bot"
 requires-python = ">=3.11"
 dependencies = [
