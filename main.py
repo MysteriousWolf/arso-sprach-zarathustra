@@ -12,11 +12,20 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord import app_commands
 from rich.markup import escape
 
+import arso as arso_module
 from arso import ARSO
+from banner import BOT_VERSION as _BOT_VERSION
+from banner import GIT_COMMIT as _GIT_COMMIT
+from banner import print_banner as _print_banner
 from utils.ColorUtils import ColorUtils, color_to_discord
 from utils.log import fmt_cmd, fmt_entity, fmt_id, fmt_timing, get_logger, setup_logging
 
 logger = get_logger("bot")
+
+_REPO = "https://github.com/MysteriousWolf/arso-sprach-zarathustra"
+_COLOR_ARSO = discord.Color.from_rgb(0, 130, 188)
+_COLOR_ARSO_NEON = discord.Color.from_rgb(0, 176, 255)
+_COLOR_EMBED = _COLOR_ARSO
 
 
 def log_command(func):
@@ -41,24 +50,18 @@ def log_command(func):
     return wrapper
 
 
-arso_color = discord.Color.from_rgb(0, 130, 188)
-arso_neon = discord.Color.from_rgb(0, 176, 255)
-embed_color = arso_color
-
-
 class ARSOClient(discord.Client):
     config: dict
     config_file: str
     tree: app_commands.CommandTree
+    start_time: datetime
 
     def __init__(self, *, intents: discord.Intents, config_file="config.yaml"):
         super().__init__(intents=intents)
         self.config_file = config_file
         self.temp_dir = tempfile.gettempdir()
         self.tree = app_commands.CommandTree(self)
-        self.arso = ARSO(
-            self.temp_dir, "https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
-        )
+        self.arso = ARSO(self.temp_dir)
         self.cu = ColorUtils()
 
         try:
@@ -101,10 +104,8 @@ class ARSOClient(discord.Client):
         )
         embed.add_field(name="Tekstovna napoved", value=fc["body"], inline=True)
         embed.set_footer(text="ARSO").timestamp = fc["timestamp"]
-        embed.set_author(name=fc["author"], url="https://meteo.arso.gov.si/")
-        embed.set_thumbnail(
-            url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
-        )
+        embed.set_author(name=fc["author"], url=arso_module.HOME_URL)
+        embed.set_thumbnail(url=arso_module.THUMBNAIL_URL)
         embed.set_image(url="attachment://morn_tabela.png")
 
         return {"file": file, "embed": embed}
@@ -115,13 +116,11 @@ class ARSOClient(discord.Client):
         tble = self.arso.get_3day_table()
         file = discord.File(tble, filename="napoved_tabela.png")
 
-        embed = discord.Embed(color=embed_color, title=fc["title"])
+        embed = discord.Embed(color=_COLOR_EMBED, title=fc["title"])
         embed.add_field(name="Tekstovna napoved", value=fc["body"], inline=True)
         embed.set_footer(text="ARSO").timestamp = fc["timestamp"]
-        embed.set_author(name=fc["author"], url="https://meteo.arso.gov.si/")
-        embed.set_thumbnail(
-            url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
-        )
+        embed.set_author(name=fc["author"], url=arso_module.HOME_URL)
+        embed.set_thumbnail(url=arso_module.THUMBNAIL_URL)
         embed.set_image(url="attachment://napoved_tabela.png")
 
         return {"file": file, "embed": embed}
@@ -137,11 +136,9 @@ class ARSOClient(discord.Client):
         embed.set_footer(text="ARSO").timestamp = datetime.now()
         embed.set_author(
             name="Vir: Agencija Republike Slovenije za okolje",
-            url="https://meteo.arso.gov.si/met/sl/weather/observ/radar/",
+            url=arso_module.RADAR_AUTHOR_URL,
         )
-        embed.set_thumbnail(
-            url="https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
-        )
+        embed.set_thumbnail(url=arso_module.THUMBNAIL_URL)
         embed.set_image(url=f"attachment://{filename}")
 
         return {"file": file, "embed": embed}
@@ -222,6 +219,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
+    _print_banner()
     setup_logging(logging.DEBUG if args.debug else logging.INFO)
 
     disc_intents = discord.Intents.default()
@@ -233,6 +231,7 @@ if __name__ == "__main__":
     @client.event
     async def on_ready():
         assert client.user is not None
+        client.start_time = datetime.now()
         logger.info(f"logged on as {fmt_entity(client.user.name, client.user.discriminator)}")
 
         for server in client.guilds:
@@ -294,7 +293,22 @@ if __name__ == "__main__":
     @client.tree.command()
     @log_command
     async def version(interaction: discord.Interaction):
-        """Odstrani trenutni kanal za dnevna sporočila"""
-        await interaction.response.send_message("Last updated on 21. 2. 2023")
+        """Prikaže trenutno verzijo bota"""
+        assert client.user is not None
+        uptime = datetime.now() - client.start_time
+        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        commit_str = ""
+        if _GIT_COMMIT:
+            short = _GIT_COMMIT[:7]
+            commit_str = f" ([`{short}`]({_REPO}/commit/{_GIT_COMMIT}))"
+
+        msg = (
+            f"## [{client.user.name}]({_REPO}) v{_BOT_VERSION}{commit_str}\n"
+            f"Unofficial ARSO Discord weather bot *by [MysteriousWolf](https://github.com/MysteriousWolf)*\n"
+            f"**Uptime:** {hours}h {minutes}m {seconds}s (since <t:{int(client.start_time.timestamp())}:f>)"
+        )
+        await interaction.response.send_message(msg, suppress_embeds=True)
 
     client.run(client.config["token"], log_handler=None)

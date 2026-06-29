@@ -11,17 +11,20 @@ from utils.log import get_logger
 
 logger = get_logger("arso")
 
+_BASE_URL = "https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
+_CSS_URL = "https://meteo.arso.gov.si/uploads/meteo/style/css/webmet.css"
+_RADAR_GIF_URL = "https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif"
+HOME_URL = "https://meteo.arso.gov.si/"
+RADAR_AUTHOR_URL = "https://meteo.arso.gov.si/met/sl/weather/observ/radar/"
+THUMBNAIL_URL = "https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
+
 
 class ARSO:
-    css = "https://meteo.arso.gov.si/uploads/meteo/style/css/webmet.css"
-
-    def __init__(
-        self, tempdir, url="https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
-    ):
+    def __init__(self, tempdir, url=_BASE_URL):
         self.tempdir = tempdir
         self.url = url
         self.op = ObetiParser()
-        self.tg = TableGenerator(tempdir, url, self.css)
+        self.tg = TableGenerator(tempdir, url, _CSS_URL)
 
         self.s = requests.Session()
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[404, 502, 503, 504])
@@ -59,7 +62,7 @@ class ARSO:
         return self.tg.generate_shorthand("morn_tabela.png")
 
     def get_percipitation_gif(self) -> io.BytesIO:
-        url = "https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif"
+        url = _RADAR_GIF_URL
         logger.debug(f"GET {url}")
         t0 = time.monotonic()
         res = self.s.get(url)

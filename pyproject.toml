@@ -14,6 +14,7 @@ dependencies = [
     "colour>=0.1.5",
     "rich>=15.0.0",
     "platformdirs>=4.0.0",
+    "pyfiglet>=1.0.4",
 ]
 
 [tool.ruff]
