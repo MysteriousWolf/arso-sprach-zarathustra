@@ -14,7 +14,7 @@ from discord import app_commands
 from rich.markup import escape
 
 import arso as arso_module
-from arso import ARSO
+from arso import ARSO, TRIESTE, geocode_location, within_slovenia
 from banner import BOT_VERSION as _BOT_VERSION
 from banner import GIT_COMMIT as _GIT_COMMIT
 from banner import print_banner as _print_banner
@@ -164,11 +164,14 @@ class ARSOClient(discord.Client):
 
         @self.tree.command()
         @log_command
-        async def padavine(interaction: discord.Interaction) -> None:
+        async def padavine(
+            interaction: discord.Interaction,
+            lokacija: str | None = None,
+        ) -> None:
             """Izpiše padavine or something"""
             await interaction.response.defer()
             await interaction.followup.send(
-                **self.generate_precipitation_panel()
+                **self.generate_precipitation_panel(lokacija)
             )
 
         @self.tree.command()
@@ -249,8 +252,16 @@ class ARSOClient(discord.Client):
 
         return {"file": file, "embed": embed}
 
-    def generate_precipitation_panel(self):
-        gif = self.arso.get_percipitation_gif()
+    def generate_precipitation_panel(self, lokacija: str | None = None):
+        marker: tuple[float, float] | None = None
+        trieste_fallback = False
+        if lokacija is not None:
+            coords = geocode_location(lokacija)
+            if coords is not None and not within_slovenia(*coords):
+                coords = TRIESTE
+                trieste_fallback = True
+            marker = coords
+        gif = self.arso.get_percipitation_gif(marker, trieste_fallback)
         filename = datetime.now().strftime("%Y%m%d-%H%M-si0-rm-anim.gif")
         file = discord.File(gif, filename=filename)
 

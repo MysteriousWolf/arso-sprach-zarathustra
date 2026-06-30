@@ -4,12 +4,13 @@ import io
 import math
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import discord
 from astral import LocationInfo
 from astral.sun import sun
 from colour import Color
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageSequence
 
 from utils.log import get_logger
 
@@ -108,7 +109,7 @@ _gif_logger = get_logger("gif_recolor")
 
 
 def _gif_remap(palette: TablePalette) -> dict[RGB, RGB]:
-    return {_RADAR_WHITE: palette.BG, _RADAR_GREY: palette.ROW_DIVIDER}
+    return {_RADAR_WHITE: palette.BG, _RADAR_GREY: palette.HEADER_BG}
 
 
 def _apply_color_table_remap(
@@ -184,6 +185,102 @@ def recolor_radar_gif(data: bytes, palette: TablePalette) -> io.BytesIO:
         f"LCTs={n_lct}, {elapsed:.2f}ms"
     )
     return io.BytesIO(bytes(buf))
+
+
+# GIF geographic bounds: NW corner (lat_max, lng_min), SE corner (lat_min, lng_max)
+_GIF_LAT_MAX = 47.6
+_GIF_LNG_MIN = 12.1
+_GIF_LAT_MIN = 44.65
+_GIF_LNG_MAX = 17.45
+
+_CROSS_COLOR_LIGHT = (210, 20, 20, 255)
+_CROSS_COLOR_DARK = (255, 70, 70, 255)
+_CROSS_ARM = 4
+_CROSS_WIDTH = 2  # number of 1px passes per diagonal, offset by 1px each, for symmetric thickness
+
+# Easter egg — purely a joke, not meant to offend or imply any territorial claim.
+_TRIESTE_TEXT = "TRST JE NAŠ!"
+_TRIESTE_FONT_PATH = (
+    Path(__file__).parent.parent / "assets" / "NotoSans-Variable.ttf"
+)
+_TRIESTE_FONT_SIZE = 80
+
+
+def _load_trieste_font() -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    if _TRIESTE_FONT_PATH.exists():
+        font = ImageFont.truetype(str(_TRIESTE_FONT_PATH), _TRIESTE_FONT_SIZE)
+        font.set_variation_by_axes([900, 100])  # Black weight, normal width
+        return font
+    return ImageFont.load_default()
+
+
+def draw_cross_on_gif(
+    data: bytes,
+    lat: float,
+    lng: float,
+    trieste_fallback: bool = False,
+    dark_mode: bool = False,
+) -> bytes:
+    """Overlay a red X at (lat, lng) on every frame of the animated GIF."""
+    color = _CROSS_COLOR_DARK if dark_mode else _CROSS_COLOR_LIGHT
+    src = Image.open(io.BytesIO(data))
+    w, h = src.size
+
+    px = round((lng - _GIF_LNG_MIN) / (_GIF_LNG_MAX - _GIF_LNG_MIN) * w)
+    py = round((_GIF_LAT_MAX - lat) / (_GIF_LAT_MAX - _GIF_LAT_MIN) * h)
+    px = max(_CROSS_ARM, min(w - _CROSS_ARM - 1, px))
+    py = max(_CROSS_ARM, min(h - _CROSS_ARM - 1, py))
+
+    font = _load_trieste_font() if trieste_fallback else None
+
+    durations: list[int] = []
+    frames: list[Image.Image] = []
+    for frame in ImageSequence.Iterator(src):
+        durations.append(frame.info.get("duration", 100))
+        f = frame.convert("RGBA")
+        draw = ImageDraw.Draw(f)
+        for dx in range(_CROSS_WIDTH):
+            draw.line(
+                [
+                    px - _CROSS_ARM + dx,
+                    py - _CROSS_ARM,
+                    px + _CROSS_ARM + dx,
+                    py + _CROSS_ARM,
+                ],
+                fill=color,
+                width=1,
+            )
+            draw.line(
+                [
+                    px - _CROSS_ARM + dx,
+                    py + _CROSS_ARM,
+                    px + _CROSS_ARM + dx,
+                    py - _CROSS_ARM,
+                ],
+                fill=color,
+                width=1,
+            )
+        if trieste_fallback and font is not None:
+            draw.text(
+                (w // 2, h // 2),
+                _TRIESTE_TEXT,
+                fill=color,
+                font=font,
+                anchor="mm",
+            )
+        frames.append(f.quantize(method=Image.Quantize.FASTOCTREE))
+
+    out = io.BytesIO()
+    frames[0].save(
+        out,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        loop=0,
+        duration=durations,
+        optimize=False,
+    )
+    return out.getvalue()
 
 
 class ColorUtils:

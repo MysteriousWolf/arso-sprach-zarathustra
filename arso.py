@@ -7,16 +7,51 @@ from requests.adapters import HTTPAdapter, Retry
 
 from parsers.ObetiParser import ObetiParser
 from parsers.TableGenerator import TableGenerator
-from utils.ColorUtils import recolor_radar_gif
+from utils.ColorUtils import draw_cross_on_gif, recolor_radar_gif
 from utils.log import get_logger
 
 logger = get_logger("arso")
 
 _BASE_URL = "https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
 _RADAR_GIF_URL = "https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif"
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 HOME_URL = "https://meteo.arso.gov.si/"
 RADAR_AUTHOR_URL = "https://meteo.arso.gov.si/met/sl/weather/observ/radar/"
 THUMBNAIL_URL = "https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4nm_400x400.jpg"
+
+# Approximate bounding box for Slovenia
+_SLO_LAT_MIN = 45.42
+_SLO_LAT_MAX = 46.88
+_SLO_LNG_MIN = 13.38
+_SLO_LNG_MAX = 16.61
+
+# Fallback location: Trieste
+TRIESTE = (45.6495, 13.7768)
+
+
+def geocode_location(query: str) -> tuple[float, float] | None:
+    """Return (lat, lng) for a location string via Nominatim, or None on failure."""
+    try:
+        res = requests.get(
+            _NOMINATIM_URL,
+            params={"q": query, "format": "json", "limit": "1"},
+            headers={"User-Agent": "arso-sprach-zarathustra/1.0"},
+            timeout=5,
+        )
+        data = res.json()
+        if not data:
+            return None
+        return float(data[0]["lat"]), float(data[0]["lon"])
+    except Exception:
+        logger.exception(f"geocode_location failed for {query!r}")
+        return None
+
+
+def within_slovenia(lat: float, lng: float) -> bool:
+    return (
+        _SLO_LAT_MIN <= lat <= _SLO_LAT_MAX
+        and _SLO_LNG_MIN <= lng <= _SLO_LNG_MAX
+    )
 
 
 class ARSO:
@@ -70,7 +105,11 @@ class ARSO:
     def get_morn_even_table(self):
         return self.tg.generate_shorthand("morn_tabela.png")
 
-    def get_percipitation_gif(self) -> io.BytesIO:
+    def get_percipitation_gif(
+        self,
+        marker: tuple[float, float] | None = None,
+        trieste_fallback: bool = False,
+    ) -> io.BytesIO:
         url = _RADAR_GIF_URL
         logger.debug(f"GET {url}")
         t0 = time.monotonic()
@@ -80,6 +119,17 @@ class ARSO:
             logger.error(f"HTTP {res.status_code} {url} ({elapsed:.2f}s)")
             raise RuntimeError(f"Prišlo je do napake {res.status_code}")
         logger.debug(f"HTTP {res.status_code} {url} ({elapsed:.2f}s)")
-        if not self.dark_mode:
-            return io.BytesIO(res.content)
-        return recolor_radar_gif(res.content, self.tg.p)
+        data: bytes = (
+            recolor_radar_gif(res.content, self.tg.p).getvalue()
+            if self.dark_mode
+            else res.content
+        )
+        if marker is not None:
+            data = draw_cross_on_gif(
+                data,
+                marker[0],
+                marker[1],
+                trieste_fallback=trieste_fallback,
+                dark_mode=self.dark_mode,
+            )
+        return io.BytesIO(data)
