@@ -8,7 +8,6 @@ from datetime import datetime
 
 import discord
 import yaml
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord import app_commands
 from rich.markup import escape
 
@@ -24,13 +23,16 @@ from utils.ColorUtils import (
     color_to_discord,
 )
 from utils.log import (
+    fmt_channel_link,
     fmt_cmd,
-    fmt_entity,
+    fmt_guild_link,
     fmt_id,
     fmt_timing,
+    fmt_user_link,
     get_logger,
     setup_logging,
 )
+from utils.scheduler import create_scheduler, log_next_runs
 
 logger = get_logger("bot")
 
@@ -43,13 +45,19 @@ _COLOR_EMBED = _COLOR_ARSO
 def log_command(func):
     @functools.wraps(func)
     async def wrapper(interaction: discord.Interaction, *args, **kwargs):
-        user = fmt_entity(interaction.user.name, interaction.user.id)
-        guild = (
-            fmt_entity(interaction.guild.name, interaction.guild.id)
-            if interaction.guild
-            else "DM"
-        )
-        logger.info(f"{fmt_cmd(func.__name__)} by {user} @ {guild}")
+        user = fmt_user_link(interaction.user.name, interaction.user.id)
+        if interaction.guild:
+            guild_str = fmt_guild_link(
+                interaction.guild.name, interaction.guild.id
+            )
+            ch = interaction.channel
+            if isinstance(ch, discord.abc.GuildChannel):
+                location = f"{fmt_channel_link(ch.name, ch.id, interaction.guild.id)} > {guild_str}"
+            else:
+                location = guild_str
+        else:
+            location = "DM"
+        logger.info(f"{fmt_cmd(func.__name__)} by {user} @ {location}")
         t0 = time.monotonic()
         try:
             result = await func(interaction, *args, **kwargs)
@@ -105,12 +113,11 @@ class ARSOClient(discord.Client):
             self.store_config()
             sys.exit("Please fill out the config file.")
 
-    async def setup_hook(self):
-        """print(self.guilds)
-        for server in self.guilds:
-            self.tree.copy_global_to(guild=server)
-            await self.tree.sync(guild=server)"""
-        pass
+    async def setup_hook(self) -> None:
+        self.scheduler = create_scheduler(self)
+        self.scheduler.start()
+        logger.info("cron tasks started")
+        log_next_runs(self.scheduler)
 
     def generate_forecast_panel(self, paragraphs=-1):
         fc = self.arso.get_forecast(paragraphs)
@@ -260,38 +267,49 @@ if __name__ == "__main__":
     disc_intents.message_content = True
     client = ARSOClient(intents=disc_intents)
 
-    scheduler = AsyncIOScheduler()
-
     @client.event
     async def on_ready():
         assert client.user is not None
         client.start_time = datetime.now()
-        entity = fmt_entity(client.user.name, client.user.discriminator)
+        entity = fmt_user_link(client.user.name, client.user.id)
         logger.info(f"logged on as {entity}")
+        if client.guilds:
+            guild_lines = "\n[dim]-[/dim] ".join(
+                fmt_guild_link(g.name, g.id) for g in client.guilds
+            )
+            logger.info(
+                f"present in ({len(client.guilds)}):\n[dim]-[/dim] {guild_lines}"
+            )
+        else:
+            logger.info("present in: none")
 
         for server in client.guilds:
             client.tree.copy_global_to(guild=server)
             await client.tree.sync(guild=server)
 
-        logger.info("commands synced")
-
-        # test pošiljanja v kanal
-        # scheduler.add_job(client.send_weather, 'interval', seconds=5)
-
-        # polna napoved
-        scheduler.add_job(
-            client.send_weather, "cron", hour=client.config["polna_napoved_ob"]
+        cmds = client.tree.get_commands()
+        cmd_lines = "\n[dim]-[/dim] ".join(
+            f"{fmt_cmd(c.name)}: {c.description if isinstance(c, app_commands.Command) else '(context menu)'}"
+            for c in cmds
+        )
+        logger.info(
+            f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}"
         )
 
-        # kratka napoved - zaenkrat isto
-        scheduler.add_job(
-            client.send_recap,
-            "cron",
-            hour=client.config["povzetek_napovedi_ob"],
-        )
-        scheduler.start()
-
-        logger.info("cron tasks started")
+        channels = client.config["channels"]
+        if channels:
+            ch_parts = []
+            for ch_id in channels:
+                ch = client.get_channel(ch_id)
+                if isinstance(ch, discord.abc.GuildChannel):
+                    ch_parts.append(
+                        fmt_channel_link(ch.name, ch_id, ch.guild.id)
+                    )
+                else:
+                    ch_parts.append(fmt_id(ch_id))
+            logger.info(f"cron sending to: {', '.join(ch_parts)}")
+        else:
+            logger.warning("cron has no channels configured")
 
     @client.event
     async def on_message(message):

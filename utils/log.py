@@ -106,3 +106,17 @@ def fmt_timing(seconds: str) -> str:
 
 def fmt_entity(name: str, entity_id: int | str) -> str:
     return f"[bot.name]{escape(name)}[/bot.name]{fmt_id(entity_id)}"
+
+
+def fmt_user_link(name: str, user_id: int | str) -> str:
+    return f"[bot.name]{escape(name)}[/bot.name][link=https://discord.com/users/{user_id}]{fmt_id(user_id)}[/link]"
+
+
+def fmt_guild_link(name: str, guild_id: int | str) -> str:
+    return f"[bot.name]{escape(name)}[/bot.name][link=https://discord.com/channels/{guild_id}]{fmt_id(guild_id)}[/link]"
+
+
+def fmt_channel_link(
+    name: str, channel_id: int | str, guild_id: int | str
+) -> str:
+    return f"[bot.name]{escape(name)}[/bot.name][link=https://discord.com/channels/{guild_id}/{channel_id}]{fmt_id(channel_id)}[/link]"
