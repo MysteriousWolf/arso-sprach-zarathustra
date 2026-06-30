@@ -45,6 +45,7 @@ THEME = Theme(
         "bot.cron": "magenta",
         "bot.count": "yellow",
         "bot.ok": "green",
+        "bot.warn": "yellow",
         "bot.fail": "red",
     }
 )
@@ -102,6 +103,18 @@ def fmt_cmd(name: str) -> str:
 
 def fmt_timing(seconds: str) -> str:
     return f"[bot.timing]({seconds}s)[/bot.timing]"
+
+
+def fmt_ok() -> str:
+    return "[bot.ok]ok[/bot.ok]"
+
+
+def fmt_warn() -> str:
+    return "[bot.warn]warn[/bot.warn]"
+
+
+def fmt_fail() -> str:
+    return "[bot.fail]fail[/bot.fail]"
 
 
 def fmt_entity(name: str, entity_id: int | str) -> str:

@@ -25,10 +25,13 @@ from utils.ColorUtils import (
 from utils.log import (
     fmt_channel_link,
     fmt_cmd,
+    fmt_fail,
     fmt_guild_link,
     fmt_id,
+    fmt_ok,
     fmt_timing,
     fmt_user_link,
+    fmt_warn,
     get_logger,
     setup_logging,
 )
@@ -70,7 +73,9 @@ def log_command(func):
         try:
             result = await func(interaction, *args, **kwargs)
             elapsed = f"{time.monotonic() - t0:.2f}"
-            logger.info(f"{fmt_cmd(func.__name__)} ok {fmt_timing(elapsed)}")
+            logger.info(
+                f"{fmt_cmd(func.__name__)} {fmt_ok()} {fmt_timing(elapsed)}"
+            )
             return result
         except Exception:
             elapsed = f"{time.monotonic() - t0:.2f}"
@@ -278,15 +283,18 @@ class ARSOClient(discord.Client):
                 logger.exception(f"{cron} channel {fmt_id(ch)} send failed")
                 fail += 1
         elapsed = f"{time.monotonic() - t0:.2f}"
-        if fail:
-            fail_str = f"[bot.fail]fail={fail}[/bot.fail]"
+        if ok == 0:
+            logger.error(
+                f"{cron} {fmt_fail()} {fmt_timing(elapsed)}"
+                f", [bot.fail]fail={fail}[/bot.fail]"
+            )
+        elif fail:
             logger.warning(
-                f"{cron} done {fmt_timing(elapsed)}, ok={ok} {fail_str}"
+                f"{cron} {fmt_warn()} {fmt_timing(elapsed)}"
+                f", [bot.ok]ok={ok}[/bot.ok] [bot.fail]fail={fail}[/bot.fail]"
             )
         else:
-            logger.info(
-                f"{cron} done {fmt_timing(elapsed)}, [bot.ok]ok={ok}[/bot.ok]"
-            )
+            logger.info(f"{cron} {fmt_ok()} {fmt_timing(elapsed)}")
 
     def _check_and_claim(self, job_id: str, hour: int) -> bool:
         now = datetime.now()
