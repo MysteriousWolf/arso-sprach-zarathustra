@@ -6,7 +6,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-DEV = Path(__file__).parent / "dev"
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+DEV = Path(__file__).parent
 
 
 def gradient() -> None:

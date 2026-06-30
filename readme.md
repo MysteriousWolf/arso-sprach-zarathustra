@@ -1,7 +1,51 @@
-# An unofficial ARSO Discord bot
-Generates a config file when launched for the first time. Set your Discord bot token and launch it!
+<div align="center">
+  <img src="assets/banner.svg" alt="ARSO Sprach Zarathustra banner" />
+</div>
 
-## Requirements
-Along with the Python requirements in the `requirements.txt` file, the html2image library also needs a browser to generate screenshots. Due to compatibility reasons `chromium-headless-shell` is used and needs to be installed and in `PATH`.
+> This bot is not affiliated with [ARSO](https://www.arso.gov.si/) — it uses their public API.
 
-**NOTE: This bot is in no way affiliated with [ARSO](https://www.arso.gov.si/), but uses their official API to collect weather information.**
+## Quick start
+
+```sh
+uv tool install git+https://github.com/MysteriousWolf/arso-sprach-zarathustra
+arso-sprach-zarathustra
+```
+
+A config file is generated on first launch. Fill in your Discord bot token and re-run.
+
+## Run as a systemd service (Linux)
+
+Install the bot, run it once to generate and fill the config, then set up the service:
+
+```sh
+uv tool install git+https://github.com/MysteriousWolf/arso-sprach-zarathustra
+arso-sprach-zarathustra   # creates config in $XDG_CONFIG_HOME/arso-sprach-zarathustra/ (default ~/.config/) — fill in your token
+
+curl -fsSL https://raw.githubusercontent.com/MysteriousWolf/arso-sprach-zarathustra/master/arso-bot.service \
+  | sed "s/YOUR_LINUX_USER/$USER/g" \
+  > arso-bot.service
+
+sudo cp arso-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now arso-bot
+```
+
+View logs:
+
+```sh
+journalctl -u arso-bot -f
+```
+
+## Development
+
+```sh
+git clone https://github.com/MysteriousWolf/arso-sprach-zarathustra
+cd arso-sprach-zarathustra
+uv run python main.py
+```
+
+Regenerate the banner SVG after visual changes:
+
+```sh
+uv run dev/gen_banner_svg.py
+```

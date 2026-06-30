@@ -11,4 +11,4 @@ __pycache__/
 *.pyc
 .venv/
 
-# Dev output (directory tracked, contents ignored via dev/.gitignore)
+# Dev output (*.png ignored via dev/.gitignore)

@@ -6,12 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=YOUR_LINUX_USER
-WorkingDirectory=/path/to/arso-sprach-zarathustra
-# uv is usually installed at ~/.local/bin/uv — adjust if needed
-ExecStart=/home/YOUR_LINUX_USER/.local/bin/uv run python main.py
+ExecStart=/home/YOUR_LINUX_USER/.local/bin/arso-sprach-zarathustra
 Restart=on-failure
 RestartSec=5s
-# logs go to journald — view with: journalctl -u arso-bot -f
 StandardOutput=journal
 StandardError=journal
 
