@@ -10,3 +10,5 @@ config.yaml
 __pycache__/
 *.pyc
 .venv/
+
+# Dev output (directory tracked, contents ignored via dev/.gitignore)
