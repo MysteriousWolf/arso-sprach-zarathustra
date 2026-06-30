@@ -17,6 +17,12 @@ dependencies = [
     "beautifulsoup4>=4.15.0",
 ]
 
+[tool.setuptools.packages.find]
+exclude = ["dev*", "assets*", "tests*"]
+
+[tool.setuptools]
+py-modules = ["main", "arso", "banner"]
+
 [project.scripts]
 arso-sprach-zarathustra = "main:main"
 
