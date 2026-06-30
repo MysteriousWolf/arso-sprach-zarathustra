@@ -109,14 +109,26 @@ def fmt_entity(name: str, entity_id: int | str) -> str:
 
 
 def fmt_user_link(name: str, user_id: int | str) -> str:
-    return f"[bot.name]{escape(name)}[/bot.name][link=https://discord.com/users/{user_id}]{fmt_id(user_id)}[/link]"
+    url = f"https://discord.com/users/{user_id}"
+    return (
+        f"[bot.name]{escape(name)}[/bot.name]"
+        f"[link={url}]{fmt_id(user_id)}[/link]"
+    )
 
 
 def fmt_guild_link(name: str, guild_id: int | str) -> str:
-    return f"[bot.name]{escape(name)}[/bot.name][link=https://discord.com/channels/{guild_id}]{fmt_id(guild_id)}[/link]"
+    url = f"https://discord.com/channels/{guild_id}"
+    return (
+        f"[bot.name]{escape(name)}[/bot.name]"
+        f"[link={url}]{fmt_id(guild_id)}[/link]"
+    )
 
 
 def fmt_channel_link(
     name: str, channel_id: int | str, guild_id: int | str
 ) -> str:
-    return f"[bot.name]{escape(name)}[/bot.name][link=https://discord.com/channels/{guild_id}/{channel_id}]{fmt_id(channel_id)}[/link]"
+    url = f"https://discord.com/channels/{guild_id}/{channel_id}"
+    return (
+        f"[bot.name]{escape(name)}[/bot.name]"
+        f"[link={url}]{fmt_id(channel_id)}[/link]"
+    )

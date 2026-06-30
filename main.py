@@ -52,7 +52,10 @@ def log_command(func):
             )
             ch = interaction.channel
             if isinstance(ch, discord.abc.GuildChannel):
-                location = f"{fmt_channel_link(ch.name, ch.id, interaction.guild.id)} > {guild_str}"
+                ch_link = fmt_channel_link(
+                    ch.name, ch.id, interaction.guild.id
+                )
+                location = f"{ch_link} > {guild_str}"
             else:
                 location = guild_str
         else:
@@ -87,6 +90,7 @@ class ARSOClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
         self.arso = ARSO(self.temp_dir)
         self.cu = ColorUtils()
+        self._register_commands()
 
         try:
             logger.info(f"reading config {escape(config_file)}")
@@ -118,6 +122,76 @@ class ARSOClient(discord.Client):
         self.scheduler.start()
         logger.info("cron tasks started")
         log_next_runs(self.scheduler)
+
+    def _register_commands(self) -> None:
+        @self.event
+        async def on_message(message: discord.Message) -> None:
+            if self.user and message.author.id == self.user.id:
+                return
+
+        @self.tree.command()
+        @log_command
+        async def vreme(interaction: discord.Interaction) -> None:
+            """Izpiše napoved za današnji dan"""
+            await interaction.response.defer()
+            await interaction.followup.send(**self.generate_forecast_panel())
+
+        @self.tree.command()
+        @log_command
+        async def obeti(interaction: discord.Interaction) -> None:
+            """Izpiše obete"""
+            await interaction.response.defer()
+            await interaction.followup.send(**self.generate_obeti_panel())
+
+        @self.tree.command()
+        @log_command
+        async def padavine(interaction: discord.Interaction) -> None:
+            """Izpiše padavine or something"""
+            await interaction.response.defer()
+            await interaction.followup.send(
+                **self.generate_precipitation_panel()
+            )
+
+        @self.tree.command()
+        @log_command
+        async def dnevno_vreme(interaction: discord.Interaction) -> None:
+            """Doda trenutni kanal za dnevna sporočila"""
+            await interaction.response.send_message(
+                self.add_channel(interaction.channel_id)
+            )
+
+        @self.tree.command()
+        @log_command
+        async def nednevno_vreme(interaction: discord.Interaction) -> None:
+            """Odstrani trenutni kanal za dnevna sporočila"""
+            await interaction.response.send_message(
+                self.remove_channel(interaction.channel_id)
+            )
+
+        @self.tree.command()
+        @log_command
+        async def version(interaction: discord.Interaction) -> None:
+            """Prikaže trenutno verzijo bota"""
+            assert self.user is not None
+            uptime = datetime.now() - self.start_time
+            hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+
+            commit_str = ""
+            if _GIT_COMMIT:
+                short = _GIT_COMMIT[:7]
+                commit_str = f" ([`{short}`]({_REPO}/commit/{_GIT_COMMIT}))"
+
+            ts = int(self.start_time.timestamp())
+            msg = (
+                f"## [{self.user.name}]({_REPO})"
+                f" v{_BOT_VERSION}{commit_str}\n"
+                "Unofficial ARSO Discord weather bot"
+                " *by [MysteriousWolf](https://github.com/MysteriousWolf)*\n"
+                f"**Uptime:** {hours}h {minutes}m {seconds}s"
+                f" (since <t:{ts}:f>)"
+            )
+            await interaction.response.send_message(msg, suppress_embeds=True)
 
     def generate_forecast_panel(self, paragraphs=-1):
         fc = self.arso.get_forecast(paragraphs)
@@ -255,6 +329,57 @@ class ARSOClient(discord.Client):
         )
         return "Avtomatsko pošiljanje prognoze odstranjeno"
 
+    async def on_ready(self) -> None:
+        assert self.user is not None
+        self.start_time = datetime.now()
+        logger.info(
+            f"logged on as {fmt_user_link(self.user.name, self.user.id)}"
+        )
+
+        if self.guilds:
+            guild_lines = "\n[dim]-[/dim] ".join(
+                fmt_guild_link(g.name, g.id) for g in self.guilds
+            )
+            logger.info(
+                f"present in ({len(self.guilds)}):\n[dim]-[/dim] {guild_lines}"
+            )
+        else:
+            logger.info("present in: none")
+
+        for server in self.guilds:
+            self.tree.copy_global_to(guild=server)
+            await self.tree.sync(guild=server)
+
+        cmds = self.tree.get_commands()
+        cmd_lines = "\n[dim]-[/dim] ".join(
+            f"{fmt_cmd(c.name)}: "
+            + (
+                c.description
+                if isinstance(c, app_commands.Command)
+                else "(context menu)"
+            )
+            for c in cmds
+        )
+        logger.info(
+            f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}"
+        )
+
+        self._log_cron_channels()
+
+    def _log_cron_channels(self) -> None:
+        channels = self.config["channels"]
+        if not channels:
+            logger.warning("cron has no channels configured")
+            return
+        ch_parts = []
+        for ch_id in channels:
+            ch = self.get_channel(ch_id)
+            if isinstance(ch, discord.abc.GuildChannel):
+                ch_parts.append(fmt_channel_link(ch.name, ch_id, ch.guild.id))
+            else:
+                ch_parts.append(fmt_id(ch_id))
+        logger.info(f"cron sending to: {', '.join(ch_parts)}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -266,118 +391,4 @@ if __name__ == "__main__":
     disc_intents = discord.Intents.default()
     disc_intents.message_content = True
     client = ARSOClient(intents=disc_intents)
-
-    @client.event
-    async def on_ready():
-        assert client.user is not None
-        client.start_time = datetime.now()
-        entity = fmt_user_link(client.user.name, client.user.id)
-        logger.info(f"logged on as {entity}")
-        if client.guilds:
-            guild_lines = "\n[dim]-[/dim] ".join(
-                fmt_guild_link(g.name, g.id) for g in client.guilds
-            )
-            logger.info(
-                f"present in ({len(client.guilds)}):\n[dim]-[/dim] {guild_lines}"
-            )
-        else:
-            logger.info("present in: none")
-
-        for server in client.guilds:
-            client.tree.copy_global_to(guild=server)
-            await client.tree.sync(guild=server)
-
-        cmds = client.tree.get_commands()
-        cmd_lines = "\n[dim]-[/dim] ".join(
-            f"{fmt_cmd(c.name)}: {c.description if isinstance(c, app_commands.Command) else '(context menu)'}"
-            for c in cmds
-        )
-        logger.info(
-            f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}"
-        )
-
-        channels = client.config["channels"]
-        if channels:
-            ch_parts = []
-            for ch_id in channels:
-                ch = client.get_channel(ch_id)
-                if isinstance(ch, discord.abc.GuildChannel):
-                    ch_parts.append(
-                        fmt_channel_link(ch.name, ch_id, ch.guild.id)
-                    )
-                else:
-                    ch_parts.append(fmt_id(ch_id))
-            logger.info(f"cron sending to: {', '.join(ch_parts)}")
-        else:
-            logger.warning("cron has no channels configured")
-
-    @client.event
-    async def on_message(message):
-        if client.user and message.author.id == client.user.id:
-            return
-
-    @client.tree.command()
-    @log_command
-    async def vreme(interaction: discord.Interaction):
-        """Izpiše napoved za današnji dan"""
-        await interaction.response.defer()
-        await interaction.followup.send(**client.generate_forecast_panel())
-
-    @client.tree.command()
-    @log_command
-    async def obeti(interaction: discord.Interaction):
-        """Izpiše obeti"""
-        await interaction.response.defer()
-        await interaction.followup.send(**client.generate_obeti_panel())
-
-    @client.tree.command()
-    @log_command
-    async def padavine(interaction: discord.Interaction):
-        """Izpiše padavine or something"""
-        await interaction.response.defer()
-        await interaction.followup.send(
-            **client.generate_precipitation_panel()
-        )
-
-    @client.tree.command()
-    @log_command
-    async def dnevno_vreme(interaction: discord.Interaction):
-        """Doda trenutni kanal za dnevna sporočila"""
-        await interaction.response.send_message(
-            client.add_channel(interaction.channel_id)
-        )
-
-    @client.tree.command()
-    @log_command
-    async def nednevno_vreme(interaction: discord.Interaction):
-        """Odstrani trenutni kanal za dnevna sporočila"""
-        await interaction.response.send_message(
-            client.remove_channel(interaction.channel_id)
-        )
-
-    @client.tree.command()
-    @log_command
-    async def version(interaction: discord.Interaction):
-        """Prikaže trenutno verzijo bota"""
-        assert client.user is not None
-        uptime = datetime.now() - client.start_time
-        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
-        minutes, seconds = divmod(remainder, 60)
-
-        commit_str = ""
-        if _GIT_COMMIT:
-            short = _GIT_COMMIT[:7]
-            commit_str = f" ([`{short}`]({_REPO}/commit/{_GIT_COMMIT}))"
-
-        ts = int(client.start_time.timestamp())
-        msg = (
-            f"## [{client.user.name}]({_REPO})"
-            f" v{_BOT_VERSION}{commit_str}\n"
-            "Unofficial ARSO Discord weather bot"
-            " *by [MysteriousWolf](https://github.com/MysteriousWolf)*\n"
-            f"**Uptime:** {hours}h {minutes}m {seconds}s"
-            f" (since <t:{ts}:f>)"
-        )
-        await interaction.response.send_message(msg, suppress_embeds=True)
-
     client.run(client.config["token"], log_handler=None)

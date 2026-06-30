@@ -16,7 +16,8 @@ def create_scheduler(client) -> AsyncIOScheduler:
         client.send_weather, "cron", hour=full_hour, id="send_weather"
     )
     logger.info(
-        f"[bot.cron]cron.send_weather[/bot.cron] registered at hour={full_hour}"
+        f"[bot.cron]cron.send_weather[/bot.cron] "
+        f"registered at hour={full_hour}"
     )
 
     # kratka napoved - zaenkrat isto
@@ -35,5 +36,6 @@ def log_next_runs(scheduler: AsyncIOScheduler) -> None:
         nrt = job.next_run_time
         next_str = nrt.strftime("%Y-%m-%d %H:%M %Z") if nrt else "unknown"
         logger.info(
-            f"[bot.cron]cron.{job.id}[/bot.cron] next run at [bot.timing]{next_str}[/bot.timing]"
+            f"[bot.cron]cron.{job.id}[/bot.cron] next run at "
+            f"[bot.timing]{next_str}[/bot.timing]"
         )
