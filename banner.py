@@ -71,7 +71,9 @@ def _draw(styled: list[list[Cell]], glint: int | None = None) -> None:
     for row, line in enumerate(styled):
         for col, (ch, color, url) in enumerate(line):
             if url != current_url:
-                sys.stdout.write(f"\033]8;;{url}\033\\" if url else "\033]8;;\033\\")
+                sys.stdout.write(
+                    f"\033]8;;{url}\033\\" if url else "\033]8;;\033\\"
+                )
                 current_url = url
             if glint is not None:
                 dist = abs((col - row) - glint)
@@ -115,8 +117,15 @@ def print_banner() -> None:
     n_pad_top = max(0, (n_bolt - 3 - n_text) // 2)
 
     text_area_width = max(
-        len(arso_padded[fi]) + len(rest_lines[fi].rstrip())
-        + (len(f"  v{BOT_VERSION}") + (len(f" ({short_commit})") if short_commit else 0) + len(f"     {start_str}") if fi == n_text - 1 else 0)
+        len(arso_padded[fi])
+        + len(rest_lines[fi].rstrip())
+        + (
+            len(f"  v{BOT_VERSION}")
+            + (len(f" ({short_commit})") if short_commit else 0)
+            + len(f"     {start_str}")
+            if fi == n_text - 1
+            else 0
+        )
         for fi in range(n_text)
     )
 
@@ -127,17 +136,28 @@ def print_banner() -> None:
             row_cells: list[Cell] = (
                 _span(arso_padded[fi], _BLUE)
                 + _span(rest_lines[fi].rstrip())
-                + (_version_suffix(short_commit, start_str) if fi == n_text - 1 else [])
+                + (
+                    _version_suffix(short_commit, start_str)
+                    if fi == n_text - 1
+                    else []
+                )
             )
         else:
             row_cells = []
-        styled.append(_span(_margin) + _span(bolt_padded[i], _YELLOW) + _span(_margin) + row_cells)
+        styled.append(
+            _span(_margin)
+            + _span(bolt_padded[i], _YELLOW)
+            + _span(_margin)
+            + row_cells
+        )
 
     # Row n_bolt-3: description centered
     desc = "Unofficial ARSO Discord weather bot"
     desc_pad = max(0, (text_area_width - len(desc)) // 2)
     styled.append(
-        _span(_margin) + _span(bolt_padded[n_bolt - 3], _YELLOW) + _span(_margin)
+        _span(_margin)
+        + _span(bolt_padded[n_bolt - 3], _YELLOW)
+        + _span(_margin)
         + _span(" " * desc_pad + desc)
     )
 
@@ -148,7 +168,9 @@ def print_banner() -> None:
     credits = "by MysteriousWolf"
     credits_pad = text_area_width - len(credits) - len(_margin)
     styled.append(
-        _span(_margin) + _span(bolt_padded[n_bolt - 1], _YELLOW) + _span(_margin)
+        _span(_margin)
+        + _span(bolt_padded[n_bolt - 1], _YELLOW)
+        + _span(_margin)
         + _span(" " * credits_pad)
         + _span("by ", _FADED)
         + _span("MysteriousWolf", _FADED, _AUTHOR_URL)

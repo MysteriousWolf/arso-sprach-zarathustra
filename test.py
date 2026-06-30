@@ -28,9 +28,12 @@ if __name__ == "__main__":
         for i in range(0, im.size[0]):
             hour = int(i / im.size[0] * 24)
             minute = int((i / im.size[0] * 24) % 1 * 60)
-            curtime = curtime.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            curtime = curtime.replace(
+                hour=hour, minute=minute, second=0, microsecond=0
+            )
             draw.line(
-                (i, im.size[1], i, 0), fill=rgb_to_int(cu.get_color_for_time(curtime).get_rgb())
+                (i, im.size[1], i, 0),
+                fill=rgb_to_int(cu.get_color_for_time(curtime).get_rgb()),
             )
 
         im.show()

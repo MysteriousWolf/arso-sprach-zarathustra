@@ -22,12 +22,14 @@ class _Formatter(logging.Formatter):
     _plain = logging.Formatter("%(message)s")
 
     def format(self, record: logging.LogRecord) -> str:
-        fmt = self._with_path if record.levelno >= logging.ERROR else self._plain
+        fmt = (
+            self._with_path if record.levelno >= logging.ERROR else self._plain
+        )
         return fmt.format(record)
 
 
 class _DiscordHighlighter(RegexHighlighter):
-    """Highlights patterns in discord.py's own log messages that we can't mark up ourselves."""
+    """Highlights discord.py log messages we can't mark up ourselves."""
 
     base_style = "bot."
     highlights = [r"(?P<id>[0-9a-f]{32,})"]
@@ -58,7 +60,9 @@ def _file_handler() -> logging.handlers.RotatingFileHandler:
         encoding="utf-8",
     )
     handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d %(message)s")
+        logging.Formatter(
+            "%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d %(message)s"
+        )
     )
     handler.addFilter(_VoiceWarningFilter())
     return handler

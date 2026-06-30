@@ -7,7 +7,6 @@ dependencies = [
     "discord.py>=2.7.1",
     "APScheduler>=3.11.3",
     "astral>=3.2",
-    "html2image>=2.0.7",
     "Pillow>=12.2.0",
     "PyYAML>=6.0.3",
     "requests>=2.34.2",
@@ -15,11 +14,12 @@ dependencies = [
     "rich>=15.0.0",
     "platformdirs>=4.0.0",
     "pyfiglet>=1.0.4",
+    "beautifulsoup4>=4.15.0",
 ]
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 79
 
 [tool.ruff.lint]
 select = [
@@ -38,6 +38,9 @@ ignore = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+ignore_missing_imports = true
 
 [tool.basedpyright]
 venvPath = "."

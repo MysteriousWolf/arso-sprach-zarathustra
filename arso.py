@@ -27,7 +27,9 @@ class ARSO:
         self.tg = TableGenerator(tempdir, url, _CSS_URL)
 
         self.s = requests.Session()
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[404, 502, 503, 504])
+        retries = Retry(
+            total=5, backoff_factor=1, status_forcelist=[404, 502, 503, 504]
+        )
         self.s.mount("https://", HTTPAdapter(max_retries=retries))
 
     def parse_txt_url(self, url, paragraphs=-1):
@@ -36,7 +38,9 @@ class ARSO:
         x = self.s.get(url)
         elapsed = time.monotonic() - t0
         if x.status_code != 200:
-            logger.warning(f"HTTP {x.status_code} fetching {url} ({elapsed:.2f}s)")
+            logger.warning(
+                f"HTTP {x.status_code} fetching {url} ({elapsed:.2f}s)"
+            )
             return {
                 "header": "Napaka!",
                 "title": "Napaka!",
@@ -45,12 +49,16 @@ class ARSO:
                 "timestamp": datetime.now(),
             }
         logger.debug(f"HTTP {x.status_code} {url} ({elapsed:.2f}s)")
-        reencoded = bytes(x.text, x.encoding or "utf-8").decode("utf-8", "ignore")
+        reencoded = bytes(x.text, x.encoding or "utf-8").decode(
+            "utf-8", "ignore"
+        )
         self.op.feed(reencoded)
         return self.op.parse_arso_txt(paragraphs)
 
     def get_forecast(self, paragraphs=-1):
-        return self.parse_txt_url(f"{self.url}/fcast_SLOVENIA_d1-d2_text.html", paragraphs)
+        return self.parse_txt_url(
+            f"{self.url}/fcast_SLOVENIA_d1-d2_text.html", paragraphs
+        )
 
     def get_obeti(self):
         return self.parse_txt_url(f"{self.url}/fcast_SLOVENIA_d3-d5_text.html")

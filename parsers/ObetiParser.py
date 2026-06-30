@@ -77,7 +77,9 @@ class ObetiParser(HTMLParser):
             case OST.SOURCE:
                 self.author += data
             case OST.TIME:
-                self.timestamp = datetime.strptime(ru.strip_html(data), "%Y-%m-%d %H:%M")
+                self.timestamp = datetime.strptime(
+                    ru.strip_html(data), "%Y-%m-%d %H:%M"
+                )
 
     def parse_arso_txt(self, paragraphs=-1):
         return {
