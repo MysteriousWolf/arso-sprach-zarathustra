@@ -3,6 +3,7 @@ import sys
 import time
 import tomllib
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import pyfiglet
@@ -10,8 +11,15 @@ import pyfiglet
 _REPO = "https://github.com/MysteriousWolf/arso-sprach-zarathustra"
 _AUTHOR_URL = "https://github.com/MysteriousWolf"
 
-with open(Path(__file__).parent / "pyproject.toml", "rb") as _f:
-    BOT_VERSION: str = tomllib.load(_f)["project"]["version"]
+try:
+    BOT_VERSION: str = version("arso-sprach-zarathustra")
+except PackageNotFoundError:
+    _pyproject = Path(__file__).parent / "pyproject.toml"
+    if _pyproject.exists():
+        with open(_pyproject, "rb") as _f:
+            BOT_VERSION = tomllib.load(_f)["project"]["version"]
+    else:
+        BOT_VERSION = "unknown"
 
 try:
     GIT_COMMIT: str | None = subprocess.check_output(
