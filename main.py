@@ -334,9 +334,28 @@ class ARSOClient(discord.Client):
         ):
             slot = _last_scheduled_time(hour, now)
             last = self._last_fired.get(job_id)
+            if slot < self.start_time:
+                logger.debug(
+                    f"[bot.cron]cron.{job_id}[/bot.cron] skipping catch-up"
+                    f" (slot {slot.strftime('%H:%M')} predates startup"
+                    f" {self.start_time.strftime('%H:%M')})"
+                )
+                continue
             if now >= slot and (last is None or last < slot):
+                missed_at = slot.strftime("%H:%M")
+                ago_s = int((now - slot).total_seconds())
+                ago_m, ago_s = divmod(ago_s, 60)
+                ago_str = (
+                    f"{ago_m}m {ago_s}s ago" if ago_m else f"{ago_s}s ago"
+                )
+                reason = (
+                    f"scheduled {missed_at}, missed — was offline"
+                    if last is None
+                    else f"scheduled {missed_at}, last sent at {last.strftime('%H:%M')}"
+                )
                 logger.info(
-                    f"[bot.cron]cron.{job_id}[/bot.cron] missed, catching up"
+                    f"[bot.cron]cron.{job_id}[/bot.cron] catching up"
+                    f" ({reason}, {ago_str})"
                 )
                 await fn()
 
@@ -412,7 +431,8 @@ class ARSOClient(discord.Client):
                     fmt_guild_link(g.name, g.id) for g in self.guilds
                 )
                 logger.info(
-                    f"present in ({len(self.guilds)}):\n[dim]-[/dim] {guild_lines}"
+                    f"present in ([bot.count]{len(self.guilds)}[/bot.count]):"
+                    f"\n[dim]-[/dim] {guild_lines}"
                 )
             else:
                 logger.info("present in: none")
@@ -426,12 +446,8 @@ class ARSOClient(discord.Client):
                 for c in cmds
             )
             logger.info(
-                f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}"
-            )
-        else:
-            logger.info(
-                f"present in [bot.count]{len(self.guilds)}[/bot.count] guild(s), "
-                f"[bot.count]{len(cmds)}[/bot.count] command(s) synced"
+                f"commands synced ([bot.count]{len(cmds)}[/bot.count]):"
+                f"\n[dim]-[/dim] {cmd_lines}"
             )
 
         self._log_cron_channels()
@@ -441,7 +457,12 @@ class ARSOClient(discord.Client):
         self._connected_once = True
 
     async def on_resumed(self) -> None:
-        logger.info("session resumed")
+        cmds = self.tree.get_commands()
+        logger.info(
+            f"session resumed — "
+            f"[bot.count]{len(self.guilds)}[/bot.count] guild(s), "
+            f"[bot.count]{len(cmds)}[/bot.count] command(s)"
+        )
         await self._catch_up_missed_sends()
 
     def _log_cron_channels(self) -> None:
@@ -456,7 +477,7 @@ class ARSOClient(discord.Client):
                 ch_parts.append(fmt_channel_link(ch.name, ch_id, ch.guild.id))
             else:
                 ch_parts.append(fmt_id(ch_id))
-        logger.info(f"cron sending to: {', '.join(ch_parts)}")
+        logger.info(f"cron registered for: {', '.join(ch_parts)}")
 
 
 def main() -> None:
