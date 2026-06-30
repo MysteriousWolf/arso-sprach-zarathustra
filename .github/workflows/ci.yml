@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_call: # allows release.yml to re-run these checks before tagging
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-groups
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-groups
+      - run: uv run pyright
+
+  version-check:
+    name: Version Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Validate version
+        run: |
+          VERSION=$(grep -m1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+
+          if ! echo "$VERSION" | grep -qE '^[0-9]{2}\.[0-9]+$'; then
+            echo "ERROR: '$VERSION' does not match format YY.N (e.g. '26.1')"
+            exit 1
+          fi
+
+          YEAR=${VERSION%%.*}
+          N=${VERSION##*.}
+          CURRENT_YEAR=$(date +%y)
+
+          if [ "$YEAR" != "$CURRENT_YEAR" ]; then
+            echo "ERROR: version year '$YEAR' != current year '$CURRENT_YEAR'"
+            exit 1
+          fi
+
+          EXISTING=$(git tag --list "${YEAR}.*" | wc -l | tr -d '[:space:]')
+          EXPECTED_N=$((EXISTING + 1))
+
+          if [ "$N" -ne "$EXPECTED_N" ]; then
+            echo "ERROR: version N=$N but expected N=$EXPECTED_N ($EXISTING existing release(s) for '$YEAR')"
+            exit 1
+          fi
+
+          echo "OK: '$VERSION' is valid — release #${N} of 20${YEAR}"
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-groups
+      # pip-audit: scan dependencies for known CVEs
+      - name: Audit dependencies
+        run: uv run pip-audit --skip-editable
+      # bandit: static analysis for common Python security issues
+      - name: Static security analysis
+        run: uv run bandit -r arso.py main.py banner.py parsers/ utils/ --severity-level medium
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-groups
+      - run: uv run pytest tests/ -v --tb=short

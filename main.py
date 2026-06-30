@@ -297,22 +297,36 @@ class ARSOClient(discord.Client):
         self._last_fired[job_id] = now
         return True
 
-    async def _guarded_broadcast(self, job_id: str, config_key: str, panel_fn) -> None:
+    async def _guarded_broadcast(
+        self, job_id: str, config_key: str, panel_fn
+    ) -> None:
         if not self._check_and_claim(job_id, int(self.config[config_key])):
-            logger.debug(f"[bot.cron]cron.{job_id}[/bot.cron] slot already claimed")
+            logger.debug(
+                f"[bot.cron]cron.{job_id}[/bot.cron] slot already claimed"
+            )
             return
         await self._broadcast(job_id, panel_fn)
 
     async def _catch_up_missed_sends(self) -> None:
         now = datetime.now()
         for job_id, hour, fn in (
-            ("send_weather", int(self.config["polna_napoved_ob"]), self.send_weather),
-            ("send_recap", int(self.config["povzetek_napovedi_ob"]), self.send_recap),
+            (
+                "send_weather",
+                int(self.config["polna_napoved_ob"]),
+                self.send_weather,
+            ),
+            (
+                "send_recap",
+                int(self.config["povzetek_napovedi_ob"]),
+                self.send_recap,
+            ),
         ):
             slot = _last_scheduled_time(hour, now)
             last = self._last_fired.get(job_id)
             if now >= slot and (last is None or last < slot):
-                logger.info(f"[bot.cron]cron.{job_id}[/bot.cron] missed, catching up")
+                logger.info(
+                    f"[bot.cron]cron.{job_id}[/bot.cron] missed, catching up"
+                )
                 await fn()
 
     async def send_weather(self):
@@ -393,10 +407,16 @@ class ARSOClient(discord.Client):
                 logger.info("present in: none")
             cmd_lines = "\n[dim]-[/dim] ".join(
                 f"{fmt_cmd(c.name)}: "
-                + (c.description if isinstance(c, app_commands.Command) else "(context menu)")
+                + (
+                    c.description
+                    if isinstance(c, app_commands.Command)
+                    else "(context menu)"
+                )
                 for c in cmds
             )
-            logger.info(f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}")
+            logger.info(
+                f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}"
+            )
         else:
             logger.info(
                 f"present in [bot.count]{len(self.guilds)}[/bot.count] guild(s), "

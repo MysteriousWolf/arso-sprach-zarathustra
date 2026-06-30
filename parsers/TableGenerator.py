@@ -138,7 +138,7 @@ class TableGenerator:
         for tr in soup.find_all("tr"):
             row = []
             for cell in tr.find_all(["th", "td"]):
-                cls = cell.get("class") or []
+                cls: list[str] | str = cell.get("class") or []
                 cls_str = " ".join(cls) if isinstance(cls, list) else str(cls)
                 img = cell.find("img")
                 if img and img.get("src"):
