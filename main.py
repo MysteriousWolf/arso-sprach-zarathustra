@@ -4,7 +4,7 @@ import logging
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import discord
 import yaml
@@ -40,6 +40,11 @@ _REPO = "https://github.com/MysteriousWolf/arso-sprach-zarathustra"
 _COLOR_ARSO = discord.Color.from_rgb(*ARSO_PRIMARY)
 _COLOR_ARSO_NEON = discord.Color.from_rgb(*ARSO_NEON)
 _COLOR_EMBED = _COLOR_ARSO
+
+
+def _last_scheduled_time(hour: int, now: datetime) -> datetime:
+    slot = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    return slot if now >= slot else slot - timedelta(days=1)
 
 
 def log_command(func):
@@ -90,6 +95,8 @@ class ARSOClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
         self.arso = ARSO(self.temp_dir)
         self.cu = ColorUtils()
+        self._connected_once = False
+        self._last_fired: dict[str, datetime] = {}
         self._register_commands()
 
         try:
@@ -281,12 +288,43 @@ class ARSOClient(discord.Client):
                 f"{cron} done {fmt_timing(elapsed)}, [bot.ok]ok={ok}[/bot.ok]"
             )
 
+    def _check_and_claim(self, job_id: str, hour: int) -> bool:
+        now = datetime.now()
+        slot = _last_scheduled_time(hour, now)
+        last = self._last_fired.get(job_id)
+        if last is not None and last >= slot:
+            return False
+        self._last_fired[job_id] = now
+        return True
+
+    async def _guarded_broadcast(self, job_id: str, config_key: str, panel_fn) -> None:
+        if not self._check_and_claim(job_id, int(self.config[config_key])):
+            logger.debug(f"[bot.cron]cron.{job_id}[/bot.cron] slot already claimed")
+            return
+        await self._broadcast(job_id, panel_fn)
+
+    async def _catch_up_missed_sends(self) -> None:
+        now = datetime.now()
+        for job_id, hour, fn in (
+            ("send_weather", int(self.config["polna_napoved_ob"]), self.send_weather),
+            ("send_recap", int(self.config["povzetek_napovedi_ob"]), self.send_recap),
+        ):
+            slot = _last_scheduled_time(hour, now)
+            last = self._last_fired.get(job_id)
+            if now >= slot and (last is None or last < slot):
+                logger.info(f"[bot.cron]cron.{job_id}[/bot.cron] missed, catching up")
+                await fn()
+
     async def send_weather(self):
-        await self._broadcast("send_weather", self.generate_forecast_panel)
+        await self._guarded_broadcast(
+            "send_weather", "polna_napoved_ob", self.generate_forecast_panel
+        )
 
     async def send_recap(self):
-        await self._broadcast(
-            "send_recap", lambda: self.generate_forecast_panel(paragraphs=1)
+        await self._guarded_broadcast(
+            "send_recap",
+            "povzetek_napovedi_ob",
+            lambda: self.generate_forecast_panel(paragraphs=1),
         )
 
     def dedup_channels(self):
@@ -331,40 +369,49 @@ class ARSOClient(discord.Client):
 
     async def on_ready(self) -> None:
         assert self.user is not None
-        self.start_time = datetime.now()
+        if not self._connected_once:
+            self.start_time = datetime.now()
+
         logger.info(
             f"logged on as {fmt_user_link(self.user.name, self.user.id)}"
         )
-
-        if self.guilds:
-            guild_lines = "\n[dim]-[/dim] ".join(
-                fmt_guild_link(g.name, g.id) for g in self.guilds
-            )
-            logger.info(
-                f"present in ({len(self.guilds)}):\n[dim]-[/dim] {guild_lines}"
-            )
-        else:
-            logger.info("present in: none")
 
         for server in self.guilds:
             self.tree.copy_global_to(guild=server)
             await self.tree.sync(guild=server)
 
         cmds = self.tree.get_commands()
-        cmd_lines = "\n[dim]-[/dim] ".join(
-            f"{fmt_cmd(c.name)}: "
-            + (
-                c.description
-                if isinstance(c, app_commands.Command)
-                else "(context menu)"
+        if not self._connected_once:
+            if self.guilds:
+                guild_lines = "\n[dim]-[/dim] ".join(
+                    fmt_guild_link(g.name, g.id) for g in self.guilds
+                )
+                logger.info(
+                    f"present in ({len(self.guilds)}):\n[dim]-[/dim] {guild_lines}"
+                )
+            else:
+                logger.info("present in: none")
+            cmd_lines = "\n[dim]-[/dim] ".join(
+                f"{fmt_cmd(c.name)}: "
+                + (c.description if isinstance(c, app_commands.Command) else "(context menu)")
+                for c in cmds
             )
-            for c in cmds
-        )
-        logger.info(
-            f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}"
-        )
+            logger.info(f"commands synced ({len(cmds)}):\n[dim]-[/dim] {cmd_lines}")
+        else:
+            logger.info(
+                f"present in [bot.count]{len(self.guilds)}[/bot.count] guild(s), "
+                f"[bot.count]{len(cmds)}[/bot.count] command(s) synced"
+            )
 
         self._log_cron_channels()
+
+        if self._connected_once:
+            await self._catch_up_missed_sends()
+        self._connected_once = True
+
+    async def on_resumed(self) -> None:
+        logger.info("session resumed")
+        await self._catch_up_missed_sends()
 
     def _log_cron_channels(self) -> None:
         channels = self.config["channels"]
