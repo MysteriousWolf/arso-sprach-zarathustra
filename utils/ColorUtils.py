@@ -31,6 +31,7 @@ def _mix(base: RGB, factor: float) -> RGB:
 ARSO_PRIMARY: RGB = (0, 130, 188)  # #0082BC
 ARSO_NEON: RGB = (0, 176, 255)  # #00B0FF
 
+
 @dataclass(frozen=True)
 class TablePalette:
     BG: RGB
@@ -50,34 +51,35 @@ LIGHT_PALETTE = TablePalette(
     BG=(255, 255, 255),
     HEADER_BG=ARSO_PRIMARY,
     HEADER_FG=(255, 255, 255),
-    LABEL_BG=_mix(ARSO_PRIMARY, +0.88),   # very light ARSO tint
-    LABEL_FG=_mix(ARSO_PRIMARY, -0.60),   # deep ARSO blue
+    LABEL_BG=_mix(ARSO_PRIMARY, +0.88),  # very light ARSO tint
+    LABEL_FG=_mix(ARSO_PRIMARY, -0.60),  # deep ARSO blue
     CELL_BG=(255, 255, 255),
     CELL_BG_ALT=_mix(ARSO_PRIMARY, +0.96),  # barely-there zebra stripe
-    CELL_FG=_mix(ARSO_PRIMARY, -0.80),    # near-black body text
-    TMAX_FG=(185, 80, 60),                # subtle warm terracotta
-    TMIN_FG=(60, 100, 170),               # subtle cool slate
+    CELL_FG=_mix(ARSO_PRIMARY, -0.80),  # near-black body text
+    TMAX_FG=(185, 80, 60),  # subtle warm terracotta
+    TMIN_FG=(60, 100, 170),  # subtle cool slate
     ROW_DIVIDER=_mix(ARSO_PRIMARY, +0.73),  # soft ARSO blue border
 )
 
 DARK_PALETTE = TablePalette(
-    BG=(25, 27, 30),                      # deep dark background
+    BG=(25, 27, 30),  # deep dark background
     HEADER_BG=_mix(ARSO_PRIMARY, -0.35),  # darkened ARSO blue header
     HEADER_FG=(255, 255, 255),
-    LABEL_BG=(35, 40, 48),               # blue-tinted dark surface for labels
-    LABEL_FG=(140, 190, 230),            # light ARSO tint
+    LABEL_BG=(35, 40, 48),  # blue-tinted dark surface for labels
+    LABEL_FG=(140, 190, 230),  # light ARSO tint
     CELL_BG=(25, 27, 30),
-    CELL_BG_ALT=(33, 36, 41),            # visible zebra stripe
-    CELL_FG=(210, 215, 220),             # near-white body text
-    TMAX_FG=(200, 105, 85),              # lighter warm for dark bg
-    TMIN_FG=(110, 160, 225),             # lighter cool for dark bg
-    ROW_DIVIDER=(60, 68, 82),            # clearly visible blue-tinted divider
+    CELL_BG_ALT=(33, 36, 41),  # visible zebra stripe
+    CELL_FG=(210, 215, 220),  # near-white body text
+    TMAX_FG=(200, 105, 85),  # lighter warm for dark bg
+    TMIN_FG=(110, 160, 225),  # lighter cool for dark bg
+    ROW_DIVIDER=(60, 68, 82),  # clearly visible blue-tinted divider
 )
 
 
 # ---------------------------------------------------------------------------
 # Image colour utilities
 # ---------------------------------------------------------------------------
+
 
 def invert_icon_lightness(icon: Image.Image) -> Image.Image:
     """Invert brightness while preserving hue and saturation (L → 1−L in HLS)."""
@@ -100,7 +102,7 @@ def invert_icon_lightness(icon: Image.Image) -> Image.Image:
 # ---------------------------------------------------------------------------
 
 _RADAR_WHITE: RGB = (255, 255, 255)
-_RADAR_GREY: RGB = (186, 186, 186)   # #BABABA — scan-border grey
+_RADAR_GREY: RGB = (186, 186, 186)  # #BABABA — scan-border grey
 
 _gif_logger = get_logger("gif_recolor")
 
@@ -119,8 +121,12 @@ def _apply_color_table_remap(
         if rgb in remap:
             buf[off], buf[off + 1], buf[off + 2] = remap[rgb]
         else:
-            h, l, s = colorsys.rgb_to_hls(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
-            r, g, b = (round(v * 255) for v in colorsys.hls_to_rgb(h, 1 - l, s))
+            h, li, s = colorsys.rgb_to_hls(
+                rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            )
+            r, g, b = (
+                round(v * 255) for v in colorsys.hls_to_rgb(h, 1 - li, s)
+            )
             buf[off], buf[off + 1], buf[off + 2] = r, g, b
 
 
@@ -147,7 +153,8 @@ def recolor_radar_gif(data: bytes, palette: TablePalette) -> io.BytesIO:
         elif b == 0x21:
             pos += 2
             while pos < len(buf):
-                sz = buf[pos]; pos += 1
+                sz = buf[pos]
+                pos += 1
                 if sz == 0:
                     break
                 pos += sz
@@ -163,7 +170,8 @@ def recolor_radar_gif(data: bytes, palette: TablePalette) -> io.BytesIO:
                 pos += lct_count * 3
             pos += 1
             while pos < len(buf):
-                sz = buf[pos]; pos += 1
+                sz = buf[pos]
+                pos += 1
                 if sz == 0:
                     break
                 pos += sz

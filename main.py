@@ -131,7 +131,9 @@ class ARSOClient(discord.Client):
             self.store_config()
             sys.exit("Please fill out the config file.")
 
-        self.arso = ARSO(self.temp_dir, dark_mode=self.config.get("dark_mode", True))
+        self.arso = ARSO(
+            self.temp_dir, dark_mode=self.config.get("dark_mode", True)
+        )
         self._register_commands()
 
     async def setup_hook(self) -> None:

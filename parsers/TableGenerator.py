@@ -6,7 +6,12 @@ import requests
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 
-from utils.ColorUtils import DARK_PALETTE, LIGHT_PALETTE, TablePalette, invert_icon_lightness
+from utils.ColorUtils import (
+    DARK_PALETTE,
+    LIGHT_PALETTE,
+    TablePalette,
+    invert_icon_lightness,
+)
 from utils.log import get_logger
 
 logger = get_logger("table_generator")
@@ -247,7 +252,11 @@ class TableGenerator:
             (i for i, r in enumerate(rows) if _label(r) == "Veter"), None
         )
         hitrost_idx = next(
-            (i for i, r in enumerate(rows) if _label(r).startswith("Hitrost vetra")),
+            (
+                i
+                for i, r in enumerate(rows)
+                if _label(r).startswith("Hitrost vetra")
+            ),
             None,
         )
         if veter_idx is not None and hitrost_idx is not None:
@@ -274,7 +283,9 @@ class TableGenerator:
                     val = val.replace("Slovenija / osrednja", "Slo. osrednja")
                 else:
                     val = val.replace("Ljubljana in okolica", "Ljubljana")
-                    val = val.replace("popoldne", "pop.").replace("zjutraj", "zjut.")
+                    val = val.replace("popoldne", "pop.").replace(
+                        "zjutraj", "zjut."
+                    )
                     for full, abbr in _DAY_ABBR.items():
                         val = val.replace(full, abbr)
                 cell["value"] = val
@@ -380,7 +391,9 @@ class TableGenerator:
             top_align = cell.get("wind_combined") or cell.get("vreme_combined")
             iy = y + _PAD_V if top_align else y + (rh - icon_size) // 2
             is_wind = bool(cell.get("wind"))
-            icon = self._fetch_icon(cell["value"], icon_size, invert=is_wind and self.dark_mode)
+            icon = self._fetch_icon(
+                cell["value"], icon_size, invert=is_wind and self.dark_mode
+            )
             if icon:
                 img.paste(icon, (ix, iy), icon)
             if "overlay" in cell:
@@ -403,7 +416,10 @@ class TableGenerator:
                     bb2 = font.getbbox(cell["tmin"])
                     tw2 = bb2[2] - bb2[0]
                     draw.text(
-                        (x + (cw - tw2) // 2 - bb2[0], ty + th + _PAD_V - bb2[1]),
+                        (
+                            x + (cw - tw2) // 2 - bb2[0],
+                            ty + th + _PAD_V - bb2[1],
+                        ),
                         cell["tmin"],
                         fill=self.p.TMIN_FG,
                         font=font,
@@ -449,7 +465,10 @@ class TableGenerator:
             bb2 = font.getbbox(tmin_val)
             tw2 = bb2[2] - bb2[0]
             draw.text(
-                (x + (cw - tw2) // 2 - bb2[0], y + _PAD_V + th + _PAD_V - bb2[1]),
+                (
+                    x + (cw - tw2) // 2 - bb2[0],
+                    y + _PAD_V + th + _PAD_V - bb2[1],
+                ),
                 tmin_val,
                 fill=self.p.TMIN_FG,
                 font=font,
