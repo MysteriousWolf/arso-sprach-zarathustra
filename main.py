@@ -102,6 +102,7 @@ class ARSOClient(discord.Client):
         self.cu = ColorUtils()
         self._connected_once = False
         self._last_fired: dict[str, datetime] = {}
+        self.start_time = datetime.now()
         self._register_commands()
 
         try:
@@ -198,10 +199,10 @@ class ARSOClient(discord.Client):
             msg = (
                 f"## [{self.user.name}]({_REPO})"
                 f" v{_BOT_VERSION}{commit_str}\n"
-                "Unofficial ARSO Discord weather bot"
-                " *by [MysteriousWolf](https://github.com/MysteriousWolf)*\n"
-                f"**Uptime:** {hours}h {minutes}m {seconds}s"
-                f" (since <t:{ts}:f>)"
+                "Neuradni Discord bot za ARSO vremensko napoved"
+                " *razvil [MysteriousWolf](https://github.com/MysteriousWolf)*\n"
+                f"**Obratuje: **{hours}h {minutes}m {seconds}s"
+                f" (od <t:{ts}:f>)"
             )
             await interaction.response.send_message(msg, suppress_embeds=True)
 
