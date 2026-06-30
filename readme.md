@@ -55,3 +55,11 @@ Regenerate the banner SVG after visual changes:
 ```sh
 uv run dev/gen_banner_svg.py
 ```
+
+Preview generated images (saved to `dev/`):
+
+```sh
+uv run dev/dev_tools.py gradient   # day color gradient strip
+uv run dev/dev_tools.py obeti      # 3-day forecast table
+uv run dev/dev_tools.py vreme      # morning/evening weather table
+```
