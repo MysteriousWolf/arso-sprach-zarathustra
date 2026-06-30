@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Generate assets/banner.svg. Run: uv run dev/gen_banner_svg.py"""
 
-from pathlib import Path
 import sys
 import xml.sax.saxutils as esc
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from banner import _BLUE, _FADED, _YELLOW, _figlet, _lightning, _span  # noqa: E402
+from banner import (  # noqa: E402
+    _BLUE,
+    _FADED,
+    _YELLOW,
+    _figlet,
+    _lightning,
+    _span,
+)
 
 BG = "#0d1117"
 FG = "#e6edf3"
@@ -43,10 +50,10 @@ def main() -> None:
     arso_lines = _figlet("ARSO")
     rest_lines = _figlet("Sprach Zarathustra")
 
-    arso_width = max(len(l) for l in arso_lines)
+    arso_width = max(len(line) for line in arso_lines)
     while len(arso_lines) < len(rest_lines):
         arso_lines.append("")
-    arso_padded = [l.ljust(arso_width) for l in arso_lines]
+    arso_padded = [line.ljust(arso_width) for line in arso_lines]
 
     bolt_rows = _lightning()
     bolt_w = max(len(r) for r in bolt_rows) + 1
@@ -56,7 +63,10 @@ def main() -> None:
     mg = "    "
     n_text = len(rest_lines)
     n_pad_top = max(0, (n_bolt - 3 - n_text) // 2)
-    text_w = max(len(arso_padded[fi]) + len(rest_lines[fi].rstrip()) for fi in range(n_text))
+    text_w = max(
+        len(arso_padded[fi]) + len(rest_lines[fi].rstrip())
+        for fi in range(n_text)
+    )
 
     svg_lines: list[list[tuple[str, str, str]]] = []
 
@@ -64,37 +74,54 @@ def main() -> None:
         fi = i - n_pad_top
         body = (
             _span(arso_padded[fi], _BLUE) + _span(rest_lines[fi].rstrip())
-            if 0 <= fi < n_text else []
+            if 0 <= fi < n_text
+            else []
         )
-        svg_lines.append(_span(mg) + _span(bolt_padded[i], _YELLOW) + _span(mg) + body)
+        svg_lines.append(
+            _span(mg) + _span(bolt_padded[i], _YELLOW) + _span(mg) + body
+        )
 
     desc = "Unofficial ARSO Discord weather bot"
     desc_pad = max(0, (text_w - len(desc)) // 2)
-    svg_lines.append(_span(mg) + _span(bolt_padded[n_bolt - 3], _YELLOW) + _span(mg) + _span(" " * desc_pad + desc))
+    svg_lines.append(
+        _span(mg)
+        + _span(bolt_padded[n_bolt - 3], _YELLOW)
+        + _span(mg)
+        + _span(" " * desc_pad + desc)
+    )
     svg_lines.append(_span(mg) + _span(bolt_padded[n_bolt - 2], _YELLOW))
 
     credits = "by MysteriousWolf"
     svg_lines.append(
-        _span(mg) + _span(bolt_padded[n_bolt - 1], _YELLOW) + _span(mg)
+        _span(mg)
+        + _span(bolt_padded[n_bolt - 1], _YELLOW)
+        + _span(mg)
         + _span(" " * (text_w - len(credits) - len(mg)))
-        + _span("by ", _FADED) + _span("MysteriousWolf", _FADED)
+        + _span("by ", _FADED)
+        + _span("MysteriousWolf", _FADED)
     )
 
     max_chars = max(sum(len(ch) for ch, _, _ in row) for row in svg_lines)
-    w = round(PAD_X * 2 + max_chars * CHAR_W)
-    h = PAD_Y * 2 + FONT_SIZE + (len(svg_lines) - 1) * LINE_H + (LINE_H - FONT_SIZE)
+    w = round(PAD_X * 2 + (max_chars + len(mg)) * CHAR_W)
+    h = (
+        PAD_Y * 2
+        + FONT_SIZE
+        + (len(svg_lines) - 1) * LINE_H
+        + (LINE_H - FONT_SIZE)
+    )
 
     style = (
         f'<style>text{{font-family:"Cascadia Code","Fira Code","Courier New",monospace;'
-        f'font-size:{FONT_SIZE}px;line-height:{LINE_H}px}}</style>'
+        f"font-size:{FONT_SIZE}px;line-height:{LINE_H}px}}</style>"
     )
     text_els = "\n".join(
-        _svg_line(row, PAD_Y + FONT_SIZE + i * LINE_H) for i, row in enumerate(svg_lines)
+        _svg_line(row, PAD_Y + FONT_SIZE + i * LINE_H)
+        for i, row in enumerate(svg_lines)
     )
     svg = (
         f'<svg viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">\n'
         f'<rect width="{w}" height="{h}" fill="{BG}"/>\n'
-        f'{style}\n{text_els}\n</svg>'
+        f"{style}\n{text_els}\n</svg>"
     )
 
     out = Path(__file__).parent.parent / "assets" / "banner.svg"
