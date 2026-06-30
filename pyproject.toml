@@ -52,6 +52,7 @@ reportMissingModuleSource = "none"
 
 [dependency-groups]
 dev = [
+    "ruff>=0.15",
     "pyright>=1.1.411",
     "mypy>=1.16",
     "types-pyyaml>=6.0.12.20260518",
