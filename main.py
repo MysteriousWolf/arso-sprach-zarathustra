@@ -100,12 +100,10 @@ class ARSOClient(discord.Client):
         self.config_file = config_file
         self.temp_dir = tempfile.gettempdir()
         self.tree = app_commands.CommandTree(self)
-        self.arso = ARSO(self.temp_dir)
         self.cu = ColorUtils()
         self._connected_once = False
         self._last_fired: dict[str, datetime] = {}
         self.start_time = datetime.now()
-        self._register_commands()
 
         try:
             logger.info(f"reading config {escape(config_file)}")
@@ -128,9 +126,13 @@ class ARSOClient(discord.Client):
                 "channels": [],
                 "polna_napoved_ob": "18",
                 "povzetek_napovedi_ob": "6",
+                "dark_mode": True,
             }
             self.store_config()
             sys.exit("Please fill out the config file.")
+
+        self.arso = ARSO(self.temp_dir, dark_mode=self.config.get("dark_mode", True))
+        self._register_commands()
 
     async def setup_hook(self) -> None:
         self.scheduler = create_scheduler(self)

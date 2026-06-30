@@ -1,10 +1,17 @@
+import colorsys
 import datetime
+import io
 import math
+import time
+from dataclasses import dataclass
 
 import discord
 from astral import LocationInfo
 from astral.sun import sun
 from colour import Color
+from PIL import Image, ImageOps
+
+from utils.log import get_logger
 
 RGB = tuple[int, int, int]
 
@@ -24,19 +31,151 @@ def _mix(base: RGB, factor: float) -> RGB:
 ARSO_PRIMARY: RGB = (0, 130, 188)  # #0082BC
 ARSO_NEON: RGB = (0, 176, 255)  # #00B0FF
 
-# Table palette — all derived from ARSO_PRIMARY so changing it
-# propagates everywhere
-TABLE_BG: RGB = (255, 255, 255)
-TABLE_HEADER_BG: RGB = ARSO_PRIMARY
-TABLE_HEADER_FG: RGB = (255, 255, 255)
-TABLE_LABEL_BG: RGB = _mix(ARSO_PRIMARY, +0.88)  # very light ARSO tint
-TABLE_LABEL_FG: RGB = _mix(ARSO_PRIMARY, -0.60)  # deep ARSO blue
-TABLE_CELL_BG: RGB = (255, 255, 255)
-TABLE_CELL_BG_ALT: RGB = _mix(ARSO_PRIMARY, +0.96)  # barely-there zebra stripe
-TABLE_CELL_FG: RGB = _mix(ARSO_PRIMARY, -0.80)  # near-black body text
-TABLE_TMAX_FG: RGB = (220, 38, 38)  # temperature red — intentionally fixed
-TABLE_TMIN_FG: RGB = (37, 99, 235)  # temperature blue — intentionally fixed
-TABLE_ROW_DIVIDER: RGB = _mix(ARSO_PRIMARY, +0.73)  # soft ARSO blue border
+@dataclass(frozen=True)
+class TablePalette:
+    BG: RGB
+    HEADER_BG: RGB
+    HEADER_FG: RGB
+    LABEL_BG: RGB
+    LABEL_FG: RGB
+    CELL_BG: RGB
+    CELL_BG_ALT: RGB
+    CELL_FG: RGB
+    TMAX_FG: RGB
+    TMIN_FG: RGB
+    ROW_DIVIDER: RGB
+
+
+LIGHT_PALETTE = TablePalette(
+    BG=(255, 255, 255),
+    HEADER_BG=ARSO_PRIMARY,
+    HEADER_FG=(255, 255, 255),
+    LABEL_BG=_mix(ARSO_PRIMARY, +0.88),   # very light ARSO tint
+    LABEL_FG=_mix(ARSO_PRIMARY, -0.60),   # deep ARSO blue
+    CELL_BG=(255, 255, 255),
+    CELL_BG_ALT=_mix(ARSO_PRIMARY, +0.96),  # barely-there zebra stripe
+    CELL_FG=_mix(ARSO_PRIMARY, -0.80),    # near-black body text
+    TMAX_FG=(185, 80, 60),                # subtle warm terracotta
+    TMIN_FG=(60, 100, 170),               # subtle cool slate
+    ROW_DIVIDER=_mix(ARSO_PRIMARY, +0.73),  # soft ARSO blue border
+)
+
+DARK_PALETTE = TablePalette(
+    BG=(25, 27, 30),                      # deep dark background
+    HEADER_BG=_mix(ARSO_PRIMARY, -0.35),  # darkened ARSO blue header
+    HEADER_FG=(255, 255, 255),
+    LABEL_BG=(35, 40, 48),               # blue-tinted dark surface for labels
+    LABEL_FG=(140, 190, 230),            # light ARSO tint
+    CELL_BG=(25, 27, 30),
+    CELL_BG_ALT=(33, 36, 41),            # visible zebra stripe
+    CELL_FG=(210, 215, 220),             # near-white body text
+    TMAX_FG=(200, 105, 85),              # lighter warm for dark bg
+    TMIN_FG=(110, 160, 225),             # lighter cool for dark bg
+    ROW_DIVIDER=(60, 68, 82),            # clearly visible blue-tinted divider
+)
+
+
+# ---------------------------------------------------------------------------
+# Image colour utilities
+# ---------------------------------------------------------------------------
+
+def invert_icon_lightness(icon: Image.Image) -> Image.Image:
+    """Invert brightness while preserving hue and saturation (L → 1−L in HLS)."""
+    r_ch, g_ch, b_ch, a_ch = icon.split()
+    inv = ImageOps.invert(Image.merge("RGB", (r_ch, g_ch, b_ch)))
+    pixels = list(inv.getdata())  # type: ignore[arg-type]
+    out = []
+    for r, g, b in pixels:
+        h, li, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
+        h = (h + 0.5) % 1.0
+        nr, ng, nb = colorsys.hls_to_rgb(h, li, s)
+        out.append((round(nr * 255), round(ng * 255), round(nb * 255)))
+    rgb_out = Image.new("RGB", inv.size)
+    rgb_out.putdata(out)  # type: ignore[arg-type]
+    return Image.merge("RGBA", (*rgb_out.split(), a_ch))
+
+
+# ---------------------------------------------------------------------------
+# Radar GIF dark-mode recolouring
+# ---------------------------------------------------------------------------
+
+_RADAR_WHITE: RGB = (255, 255, 255)
+_RADAR_GREY: RGB = (186, 186, 186)   # #BABABA — scan-border grey
+
+_gif_logger = get_logger("gif_recolor")
+
+
+def _gif_remap(palette: TablePalette) -> dict[RGB, RGB]:
+    return {_RADAR_WHITE: palette.BG, _RADAR_GREY: palette.ROW_DIVIDER}
+
+
+def _apply_color_table_remap(
+    buf: bytearray, start: int, count: int, remap: dict[RGB, RGB]
+) -> None:
+    """Rewrite count RGB palette entries in-place; invert lightness of unmapped entries."""
+    for i in range(count):
+        off = start + i * 3
+        rgb = (buf[off], buf[off + 1], buf[off + 2])
+        if rgb in remap:
+            buf[off], buf[off + 1], buf[off + 2] = remap[rgb]
+        else:
+            h, l, s = colorsys.rgb_to_hls(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
+            r, g, b = (round(v * 255) for v in colorsys.hls_to_rgb(h, 1 - l, s))
+            buf[off], buf[off + 1], buf[off + 2] = r, g, b
+
+
+def recolor_radar_gif(data: bytes, palette: TablePalette) -> io.BytesIO:
+    """Rewrite every GIF colour table for dark mode; pixel indices untouched."""
+    t_start = time.monotonic()
+    buf = bytearray(data)
+    remap = _gif_remap(palette)
+
+    packed = buf[10]
+    has_gct = bool(packed & 0x80)
+    gct_count = 2 ** ((packed & 0x07) + 1)
+    pos = 13
+
+    if has_gct:
+        _apply_color_table_remap(buf, pos, gct_count, remap)
+        pos += gct_count * 3
+
+    n_frames = n_lct = 0
+    while pos < len(buf):
+        b = buf[pos]
+        if b == 0x3B:
+            break
+        elif b == 0x21:
+            pos += 2
+            while pos < len(buf):
+                sz = buf[pos]; pos += 1
+                if sz == 0:
+                    break
+                pos += sz
+        elif b == 0x2C:
+            n_frames += 1
+            img_packed = buf[pos + 9]
+            has_lct = bool(img_packed & 0x80)
+            lct_count = 2 ** ((img_packed & 0x07) + 1)
+            pos += 10
+            if has_lct:
+                n_lct += 1
+                _apply_color_table_remap(buf, pos, lct_count, remap)
+                pos += lct_count * 3
+            pos += 1
+            while pos < len(buf):
+                sz = buf[pos]; pos += 1
+                if sz == 0:
+                    break
+                pos += sz
+        else:
+            break
+
+    elapsed = (time.monotonic() - t_start) * 1000
+    _gif_logger.info(
+        f"recolor_radar_gif: {n_frames} frames, GCT={'yes' if has_gct else 'no'}, "
+        f"LCTs={n_lct}, {elapsed:.2f}ms"
+    )
+    return io.BytesIO(bytes(buf))
 
 
 class ColorUtils:

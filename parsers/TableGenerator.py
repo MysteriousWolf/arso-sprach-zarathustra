@@ -6,19 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 
-from utils.ColorUtils import (
-    TABLE_BG,
-    TABLE_CELL_BG,
-    TABLE_CELL_BG_ALT,
-    TABLE_CELL_FG,
-    TABLE_HEADER_BG,
-    TABLE_HEADER_FG,
-    TABLE_LABEL_BG,
-    TABLE_LABEL_FG,
-    TABLE_ROW_DIVIDER,
-    TABLE_TMAX_FG,
-    TABLE_TMIN_FG,
-)
+from utils.ColorUtils import DARK_PALETTE, LIGHT_PALETTE, TablePalette, invert_icon_lightness
 from utils.log import get_logger
 
 logger = get_logger("table_generator")
@@ -30,7 +18,18 @@ _FONT_SIZE = 14 * _SCALE
 _PAD_H = 14 * _SCALE  # horizontal padding per cell side
 _PAD_V = 8 * _SCALE  # vertical padding per cell side
 _ICON_SIZE = 38 * _SCALE
+_WIND_ICON_SIZE = 38  # no _SCALE — wind icons stay compact
 _MIN_COL_W = 72 * _SCALE
+
+_DAY_ABBR = {
+    "Ponedeljek": "Pon",
+    "Torek": "Tor",
+    "Sreda": "Sre",
+    "Četrtek": "Čet",
+    "Petek": "Pet",
+    "Sobota": "Sob",
+    "Nedelja": "Ned",
+}
 
 _FONT_CANDIDATES = [
     # macOS
@@ -97,10 +96,12 @@ def _text_h(font: _Font, s: str) -> int:
 class TableGenerator:
     tablematcher = re.compile(r"(<table.+?</table>)", re.DOTALL)
 
-    def __init__(self, folder, url):
+    def __init__(self, folder, url, dark_mode: bool = True):
         self.folder = folder
         self.url = url
-        self._icon_cache: dict[str, Image.Image] = {}
+        self.dark_mode = dark_mode
+        self.p: TablePalette = DARK_PALETTE if dark_mode else LIGHT_PALETTE
+        self._icon_cache: dict[tuple[str, int, bool], Image.Image] = {}
 
     def generate_napoved(self, file):
         return self.generate_table(
@@ -165,21 +166,137 @@ class TableGenerator:
                     )
             if row:
                 rows.append(row)
+        return self._post_process_rows(rows)
+
+    def _post_process_rows(self, rows: list[list[dict]]) -> list[list[dict]]:
+        def _label(row: list[dict]) -> str:
+            return row[0].get("value", "") if row else ""
+
+        # Merge Megla/Nevihte overlay into Vreme/Pojavi row
+        vreme_idx = next(
+            (i for i, r in enumerate(rows) if _label(r).startswith("Vreme")),
+            None,
+        )
+        megla_idx = next(
+            (i for i, r in enumerate(rows) if "Megla" in _label(r)),
+            None,
+        )
+        if vreme_idx is not None and megla_idx is not None:
+            vreme_row = rows[vreme_idx]
+            megla_row = rows[megla_idx]
+            for ci in range(1, min(len(vreme_row), len(megla_row))):
+                if megla_row[ci]["type"] == "img":
+                    vreme_row[ci]["overlay"] = megla_row[ci]["value"]
+            vreme_row[0]["value"] = "Vreme"
+            rows.pop(megla_idx)
+
+        # Move units from row label into each data cell
+        unit_re = re.compile(r"^(.+?)\s*\[(.+?)\]$")
+        for row in rows:
+            m = unit_re.match(_label(row))
+            if m:
+                name, unit = m.group(1), m.group(2)
+                sep = "" if unit.startswith("°") else " "
+                row[0]["value"] = name
+                for cell in row[1:]:
+                    if cell["type"] == "text" and cell["value"]:
+                        cell["value"] = f"{cell['value']}{sep}{unit}"
+
+        # Merge Tmax and Tmin into one Temperatura row
+        tmax_idx = next(
+            (i for i, r in enumerate(rows) if _label(r) == "Tmax"), None
+        )
+        tmin_idx = next(
+            (i for i, r in enumerate(rows) if _label(r) == "Tmin"), None
+        )
+        if tmax_idx is not None and tmin_idx is not None:
+            tmax_row = rows[tmax_idx]
+            tmin_row = rows[tmin_idx]
+            for ci in range(1, min(len(tmax_row), len(tmin_row))):
+                tmin_val = tmin_row[ci].get("value", "")
+                if tmin_val:
+                    tmax_row[ci]["tmin"] = tmin_val
+            tmax_row[0]["value"] = "Temperatura"
+            for cell in tmax_row:
+                cell["temp_combined"] = True
+            rows.pop(tmin_idx)
+
+        # Merge Temperatura into Vreme row (icon + temp below)
+        vreme_idx2 = next(
+            (i for i, r in enumerate(rows) if _label(r) == "Vreme"), None
+        )
+        temp_idx = next(
+            (i for i, r in enumerate(rows) if _label(r) == "Temperatura"),
+            None,
+        )
+        if vreme_idx2 is not None and temp_idx is not None:
+            vreme_row2 = rows[vreme_idx2]
+            temp_row = rows[temp_idx]
+            for ci in range(1, min(len(vreme_row2), len(temp_row))):
+                t = temp_row[ci]
+                if t.get("value"):
+                    vreme_row2[ci]["temp"] = t["value"]
+                if "tmin" in t:
+                    vreme_row2[ci]["tmin"] = t["tmin"]
+            for cell in vreme_row2:
+                cell["vreme_combined"] = True
+            rows.pop(temp_idx)
+
+        # Merge Hitrost vetra speed into Veter row, then drop Hitrost vetra
+        veter_idx = next(
+            (i for i, r in enumerate(rows) if _label(r) == "Veter"), None
+        )
+        hitrost_idx = next(
+            (i for i, r in enumerate(rows) if _label(r).startswith("Hitrost vetra")),
+            None,
+        )
+        if veter_idx is not None and hitrost_idx is not None:
+            veter_row = rows[veter_idx]
+            hitrost_row = rows[hitrost_idx]
+            for ci in range(1, min(len(veter_row), len(hitrost_row))):
+                speed_val = hitrost_row[ci].get("value", "")
+                if speed_val:
+                    veter_row[ci]["speed"] = speed_val
+            for cell in veter_row:
+                cell["wind"] = True
+                cell["wind_combined"] = True
+            rows.pop(hitrost_idx)
+
+        # Shorten header cell text
+        for row in rows:
+            if not any(c["tag"] == "th" for c in row):
+                continue
+            first_val = row[0].get("value", "") if row else ""
+            is_obeti = "Slovenija" in first_val
+            for cell in row:
+                val = cell["value"]
+                if is_obeti:
+                    val = val.replace("Slovenija / osrednja", "Slo. osrednja")
+                else:
+                    val = val.replace("Ljubljana in okolica", "Ljubljana")
+                    val = val.replace("popoldne", "pop.").replace("zjutraj", "zjut.")
+                    for full, abbr in _DAY_ABBR.items():
+                        val = val.replace(full, abbr)
+                cell["value"] = val
+
         return rows
 
-    def _fetch_icon(self, url: str) -> Image.Image | None:
-        if url in self._icon_cache:
-            return self._icon_cache[url]
+    def _fetch_icon(
+        self, url: str, size: int = _ICON_SIZE, invert: bool = False
+    ) -> Image.Image | None:
+        key = (url, size, invert)
+        if key in self._icon_cache:
+            return self._icon_cache[key]
         try:
             logger.debug(f"GET {url}")
             r = requests.get(url, timeout=10)
             if r.status_code != 200:
                 return None
             icon = Image.open(io.BytesIO(r.content)).convert("RGBA")
-            icon = icon.resize(
-                (_ICON_SIZE, _ICON_SIZE), Image.Resampling.LANCZOS
-            )
-            self._icon_cache[url] = icon
+            icon = icon.resize((size, size), Image.Resampling.LANCZOS)
+            if invert:
+                icon = invert_icon_lightness(icon)
+            self._icon_cache[key] = icon
             return icon
         except Exception:
             logger.warning(f"failed to fetch icon {url}")
@@ -200,41 +317,49 @@ class TableGenerator:
                     col_widths[ci] = max(
                         col_widths[ci], _ICON_SIZE + 2 * _PAD_H
                     )
+                    if "speed" in cell:
+                        needed = _text_w(font, cell["speed"]) + 2 * _PAD_H
+                        col_widths[ci] = max(col_widths[ci], needed)
         return col_widths
 
     @staticmethod
     def _row_height(row: list[dict], line_h: int) -> int:
         if any(c["tag"] == "th" for c in row):
             return line_h
+        if any(c.get("vreme_combined") for c in row):
+            has_tmin = any("tmin" in c for c in row)
+            return _ICON_SIZE + (2 * line_h if has_tmin else line_h + _PAD_V)
+        if any(c.get("wind_combined") for c in row):
+            return _WIND_ICON_SIZE + line_h + 2 * _PAD_V
+        if any(c.get("wind") for c in row):
+            return _WIND_ICON_SIZE + 2 * _PAD_V
         if any(c["type"] == "img" for c in row):
             return _ICON_SIZE + 2 * _PAD_V
         return line_h
 
-    @staticmethod
     def _cell_bg(
-        is_header: bool, is_label: bool, stripe: bool
+        self, is_header: bool, is_label: bool, stripe: bool
     ) -> tuple[int, int, int]:
         if is_header:
-            return TABLE_HEADER_BG
+            return self.p.HEADER_BG
         if is_label:
-            return TABLE_LABEL_BG
+            return self.p.LABEL_BG
         if stripe:
-            return TABLE_CELL_BG_ALT
-        return TABLE_CELL_BG
+            return self.p.CELL_BG_ALT
+        return self.p.CELL_BG
 
-    @staticmethod
     def _cell_fg(
-        cell: dict, is_header: bool, is_label: bool
+        self, cell: dict, is_header: bool, is_label: bool
     ) -> tuple[int, int, int]:
         if is_header:
-            return TABLE_HEADER_FG
+            return self.p.HEADER_FG
         if "table-marker-text0" in cell["cls"]:
-            return TABLE_TMAX_FG
+            return self.p.TMAX_FG
         if "table-marker-text1" in cell["cls"]:
-            return TABLE_TMIN_FG
+            return self.p.TMIN_FG
         if is_label:
-            return TABLE_LABEL_FG
-        return TABLE_CELL_FG
+            return self.p.LABEL_FG
+        return self.p.CELL_FG
 
     def _draw_cell_content(
         self,
@@ -250,11 +375,85 @@ class TableGenerator:
         is_label: bool,
     ) -> None:
         if cell["type"] == "img":
-            icon = self._fetch_icon(cell["value"])
+            icon_size = _WIND_ICON_SIZE if cell.get("wind") else _ICON_SIZE
+            ix = x + (cw - icon_size) // 2
+            top_align = cell.get("wind_combined") or cell.get("vreme_combined")
+            iy = y + _PAD_V if top_align else y + (rh - icon_size) // 2
+            is_wind = bool(cell.get("wind"))
+            icon = self._fetch_icon(cell["value"], icon_size, invert=is_wind and self.dark_mode)
             if icon:
-                ix = x + (cw - icon.width) // 2
-                iy = y + (rh - icon.height) // 2
                 img.paste(icon, (ix, iy), icon)
+            if "overlay" in cell:
+                overlay = self._fetch_icon(cell["overlay"], icon_size)
+                if overlay:
+                    img.paste(overlay, (ix, iy), overlay)
+            if "temp" in cell:
+                temp_val = cell["temp"]
+                has_tmin = "tmin" in cell
+                bb = font.getbbox(temp_val)
+                tw, th = bb[2] - bb[0], bb[3] - bb[1]
+                ty = y + _PAD_V + icon_size + _PAD_V
+                draw.text(
+                    (x + (cw - tw) // 2 - bb[0], ty - bb[1]),
+                    temp_val,
+                    fill=self.p.TMAX_FG if has_tmin else self.p.CELL_FG,
+                    font=font,
+                )
+                if has_tmin:
+                    bb2 = font.getbbox(cell["tmin"])
+                    tw2 = bb2[2] - bb2[0]
+                    draw.text(
+                        (x + (cw - tw2) // 2 - bb2[0], ty + th + _PAD_V - bb2[1]),
+                        cell["tmin"],
+                        fill=self.p.TMIN_FG,
+                        font=font,
+                    )
+            if "speed" in cell:
+                bb = font.getbbox(cell["speed"])
+                tw, th = bb[2] - bb[0], bb[3] - bb[1]
+                draw.text(
+                    (
+                        x + (cw - tw) // 2 - bb[0],
+                        y + _PAD_V + icon_size + _PAD_V - bb[1],
+                    ),
+                    cell["speed"],
+                    fill=self._cell_fg(cell, is_header, is_label),
+                    font=font,
+                )
+        elif cell.get("speed"):
+            # wind cell with no direction icon — draw speed at same vertical
+            # position as speed text in icon cells
+            bb = font.getbbox(cell["speed"])
+            tw, th = bb[2] - bb[0], bb[3] - bb[1]
+            draw.text(
+                (
+                    x + (cw - tw) // 2 - bb[0],
+                    y + _PAD_V + _WIND_ICON_SIZE + _PAD_V - bb[1],
+                ),
+                cell["speed"],
+                fill=self._cell_fg(cell, is_header, is_label),
+                font=font,
+            )
+        elif "tmin" in cell:
+            # Temperatura combined: tmax on top, tmin below
+            tmax_val = cell["value"]
+            tmin_val = cell["tmin"]
+            bb = font.getbbox(tmax_val)
+            tw, th = bb[2] - bb[0], bb[3] - bb[1]
+            draw.text(
+                (x + (cw - tw) // 2 - bb[0], y + _PAD_V - bb[1]),
+                tmax_val,
+                fill=self.p.TMAX_FG,
+                font=font,
+            )
+            bb2 = font.getbbox(tmin_val)
+            tw2 = bb2[2] - bb2[0]
+            draw.text(
+                (x + (cw - tw2) // 2 - bb2[0], y + _PAD_V + th + _PAD_V - bb2[1]),
+                tmin_val,
+                fill=self.p.TMIN_FG,
+                font=font,
+            )
         elif cell["value"]:
             fg = self._cell_fg(cell, is_header, is_label)
             bb = font.getbbox(cell["value"])
@@ -280,7 +479,7 @@ class TableGenerator:
         row_heights = [self._row_height(row, line_h) for row in rows]
         width, height = sum(col_widths), sum(row_heights)
 
-        img = Image.new("RGB", (width, height), TABLE_BG)
+        img = Image.new("RGB", (width, height), self.p.BG)
         draw = ImageDraw.Draw(img)
 
         data_row_index = 0
@@ -318,8 +517,8 @@ class TableGenerator:
             if ri < len(rows) - 1:
                 draw.line(
                     [(0, y + rh), (width, y + rh)],
-                    fill=TABLE_ROW_DIVIDER,
-                    width=_SCALE,
+                    fill=self.p.ROW_DIVIDER,
+                    width=_SCALE * 2,
                 )
             y += rh
 

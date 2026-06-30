@@ -2,6 +2,7 @@
 .idea/
 .zed/
 .claude/
+.DS_Store
 
 # Config
 config.yaml

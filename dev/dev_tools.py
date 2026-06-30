@@ -62,7 +62,18 @@ def vreme() -> None:
     print(f"saved {out}")
 
 
-_CMDS = {"gradient": gradient, "obeti": obeti, "vreme": vreme}
+def radar() -> None:
+    from arso import ARSO
+
+    tmp = tempfile.mkdtemp()
+    arso = ARSO(tmp)
+    buf = arso.get_percipitation_gif()
+    out = DEV / "radar.gif"
+    out.write_bytes(buf.read())
+    print(f"saved {out}")
+
+
+_CMDS = {"gradient": gradient, "obeti": obeti, "vreme": vreme, "radar": radar}
 
 if __name__ == "__main__":
     DEV.mkdir(exist_ok=True)

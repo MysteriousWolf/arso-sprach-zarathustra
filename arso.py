@@ -7,6 +7,7 @@ from requests.adapters import HTTPAdapter, Retry
 
 from parsers.ObetiParser import ObetiParser
 from parsers.TableGenerator import TableGenerator
+from utils.ColorUtils import recolor_radar_gif
 from utils.log import get_logger
 
 logger = get_logger("arso")
@@ -19,11 +20,12 @@ THUMBNAIL_URL = "https://pbs.twimg.com/profile_images/798099496139915264/cSjEl4n
 
 
 class ARSO:
-    def __init__(self, tempdir, url=_BASE_URL):
+    def __init__(self, tempdir, url=_BASE_URL, dark_mode: bool = True):
         self.tempdir = tempdir
         self.url = url
+        self.dark_mode = dark_mode
         self.op = ObetiParser()
-        self.tg = TableGenerator(tempdir, url)
+        self.tg = TableGenerator(tempdir, url, dark_mode=dark_mode)
 
         self.s = requests.Session()
         retries = Retry(
@@ -78,4 +80,6 @@ class ARSO:
             logger.error(f"HTTP {res.status_code} {url} ({elapsed:.2f}s)")
             raise RuntimeError(f"Prišlo je do napake {res.status_code}")
         logger.debug(f"HTTP {res.status_code} {url} ({elapsed:.2f}s)")
-        return io.BytesIO(res.content)
+        if not self.dark_mode:
+            return io.BytesIO(res.content)
+        return recolor_radar_gif(res.content, self.tg.p)
