@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 
 DEV = Path(__file__).parent / "dev"
-DEV.mkdir(exist_ok=True)
 
 
 def gradient() -> None:
@@ -64,6 +63,7 @@ def vreme() -> None:
 _CMDS = {"gradient": gradient, "obeti": obeti, "vreme": vreme}
 
 if __name__ == "__main__":
+    DEV.mkdir(exist_ok=True)
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd not in _CMDS:
         print(f"usage: dev_tools.py [{' | '.join(_CMDS)}]")

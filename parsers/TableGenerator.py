@@ -95,11 +95,9 @@ def _text_h(font: _Font, s: str) -> int:
 
 
 class TableGenerator:
-    tablematcher = re.compile(
-        r"(<table(.|\n\r|\n|\r|\r\n)+?</table>)", re.MULTILINE
-    )
+    tablematcher = re.compile(r"(<table.+?</table>)", re.DOTALL)
 
-    def __init__(self, folder, url, css):
+    def __init__(self, folder, url):
         self.folder = folder
         self.url = url
         self._icon_cache: dict[str, Image.Image] = {}
@@ -114,7 +112,7 @@ class TableGenerator:
             file, f"{self.url}/fcast_SI_OSREDNJESLOVENSKA_latest.html"
         )
 
-    def generate_table(self, file, html_url, css_url=None, crop=None):
+    def generate_table(self, file, html_url):
         logger.debug(f"GET {html_url}")
         r = requests.get(html_url, timeout=15)
         if r.status_code != 200:

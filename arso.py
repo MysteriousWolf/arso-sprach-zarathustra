@@ -12,7 +12,6 @@ from utils.log import get_logger
 logger = get_logger("arso")
 
 _BASE_URL = "https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl"
-_CSS_URL = "https://meteo.arso.gov.si/uploads/meteo/style/css/webmet.css"
 _RADAR_GIF_URL = "https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0-rm-anim.gif"
 HOME_URL = "https://meteo.arso.gov.si/"
 RADAR_AUTHOR_URL = "https://meteo.arso.gov.si/met/sl/weather/observ/radar/"
@@ -24,7 +23,7 @@ class ARSO:
         self.tempdir = tempdir
         self.url = url
         self.op = ObetiParser()
-        self.tg = TableGenerator(tempdir, url, _CSS_URL)
+        self.tg = TableGenerator(tempdir, url)
 
         self.s = requests.Session()
         retries = Retry(
