@@ -4,7 +4,7 @@ import io
 import math
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from importlib import resources
 
 import discord
 from astral import LocationInfo
@@ -200,18 +200,23 @@ _CROSS_WIDTH = 2  # number of 1px passes per diagonal, offset by 1px each, for s
 
 # Easter egg — purely a joke, not meant to offend or imply any territorial claim.
 _TRIESTE_TEXT = "TRST JE NAŠ!"
-_TRIESTE_FONT_PATH = (
-    Path(__file__).parent.parent / "assets" / "NotoSans-Variable.ttf"
-)
+_TRIESTE_FONT_NAME = "NotoSans-Variable.ttf"
 _TRIESTE_FONT_SIZE = 80
 
 
 def _load_trieste_font() -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    if _TRIESTE_FONT_PATH.exists():
-        font = ImageFont.truetype(str(_TRIESTE_FONT_PATH), _TRIESTE_FONT_SIZE)
-        font.set_variation_by_axes([900, 100])  # Black weight, normal width
-        return font
-    return ImageFont.load_default()
+    # Resolve the font as a packaged resource, not a source-tree-relative
+    # path: when installed (uv/pip wheel) the source layout is gone, but the
+    # ttf ships as package-data under the `assets` namespace package.
+    try:
+        data = (
+            resources.files("assets").joinpath(_TRIESTE_FONT_NAME).read_bytes()
+        )
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return ImageFont.load_default()
+    font = ImageFont.truetype(io.BytesIO(data), _TRIESTE_FONT_SIZE)
+    font.set_variation_by_axes([900, 100])  # Black weight, normal width
+    return font
 
 
 def draw_cross_on_gif(
